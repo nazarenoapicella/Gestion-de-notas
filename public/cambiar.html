@@ -1,0 +1,20 @@
+<form id="form">
+<input id="pass" placeholder="Nueva contraseña">
+<button>Guardar</button>
+</form>
+
+<script>
+const user = new URLSearchParams(location.search).get("usuario");
+
+form.onsubmit = async e => {
+ e.preventDefault();
+
+ await fetch("/api/cambiar-password", {
+  method:"POST",
+  headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({usuario:user,nuevaPassword:pass.value})
+ });
+
+ location.href="index.html";
+};
+</script>
