@@ -18,7 +18,7 @@ document.getElementById("loginForm").addEventListener("submit", async e => {
   if (data.cambiar) {
     location.href = "cambiar.html?usuario=" + data.usuario;
   } else {
-    location.href = "dashboard.html";
+    location.href = "dashboard.html?id=" + data.id;
   }
     
 
