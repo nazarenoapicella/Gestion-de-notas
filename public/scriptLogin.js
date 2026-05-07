@@ -12,8 +12,14 @@ document.getElementById("loginForm").addEventListener("submit", async e => {
    const data = await res.json();
 
   if (!data.success) return alert("Error");
+  
   localStorage.setItem("id", data.id);
+
+  localStorage.setItem("usuario", data.usuario);
+
   localStorage.setItem("permiso", data.permiso);
+
+  localStorage.setItem("rango", data.rango);
 
   if (data.cambiar) {
     location.href = "cambiar.html?usuario=" + data.usuario;

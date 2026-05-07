@@ -26,6 +26,7 @@ router.post("/login", async (req, res) => {
       id: user.id,
       usuario: user.usuario,
       permiso: user.permiso,
+      rango: user.rango,
       cambiar: user.debe_cambiar_password
     });
   } catch (error) {
