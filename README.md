@@ -97,13 +97,17 @@ gestion-notas/
 │
 ├── public/
 │   ├── index.html
+|   ├── cambiar.html
+|   ├── planilla.html
 │   ├── dashboard.html
 │   ├── scriptLogin.js
 │   ├── scriptDashboard.js
+|   ├── scriptPlanilla.js
 │   └── styleLogin.css
 │
 ├── routes/
 │   ├── auth.js
+|   ├── planilla.js
 │   └── dash.js
 │
 ├── db/
