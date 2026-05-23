@@ -81,7 +81,7 @@ function actualizarInputsNota() {
       input.max         = "1";
       input.step        = "1";
       input.placeholder = "0 o 1";
-      // Si ya había un valor fuera de rango, lo limpiamos
+
       if (input.value !== "" && input.value !== "0" && input.value !== "1") {
         input.value = "";
       }
