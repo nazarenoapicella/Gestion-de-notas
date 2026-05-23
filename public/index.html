@@ -1,26 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
+
 <head>
-<link rel="stylesheet" href="styleLogin.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ET N35 Ingeniero Eduardo Latzina</title>
+  <link rel="stylesheet" href="styleLogin.css">
 </head>
+
 <body>
 
 <div class="container">
-<form id="loginForm">
-<input id="usuario" placeholder="Usuario">
-<input id="password" type="password" placeholder="Contraseña">
 
-<select id="rango">
-<option value="profesor">Profesor</option>
-<option value="alumno">Alumno</option>
-<option value="regente">Regente</option>
-<option value="preceptor">Preceptor</option>
-</select>
+  <div class="logo">
+    <h1>ET N°35</h1>
+    <p>Ingeniero Eduardo Latzina</p>
+  </div>
 
-<button>Ingresar</button>
-</form>
+  <form id="loginForm">
+
+    <input
+      id="usuario"
+      placeholder="Usuario"
+      required
+      autocomplete="username"
+    >
+
+    <input
+      id="password"
+      type="password"
+      placeholder="Contraseña"
+      required
+      autocomplete="current-password"
+    >
+
+    <select id="rango">
+      <option value="profesor">Profesor</option>
+      <option value="alumno">Alumno</option>
+      <option value="regente">Regente</option>
+    </select>
+
+    <button type="submit">Ingresar</button>
+
+  </form>
+
+  <div class="footer">
+    Sistema institucional escolar
+  </div>
+
 </div>
 
 <script src="scriptLogin.js"></script>
+
 </body>
 </html>

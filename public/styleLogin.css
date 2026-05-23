@@ -1,74 +1,146 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: "Segoe UI", sans-serif;
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family:"Segoe UI",sans-serif;
 }
 
-body {
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: linear-gradient(135deg, #1a73e8, #6a11cb);
+body{
+  min-height:100vh;
+
+  display:flex;
+  justify-content:center;
+  align-items:center;
+
+  background:
+  linear-gradient(
+    135deg,
+    #111111,
+    #2b2b2b,
+    #4a4a4a
+  );
 }
 
-.container {
-  background: white;
-  padding: 40px;
-  border-radius: 20px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-  text-align: center;
+.container{
+
+  width:100%;
+  max-width:430px;
+
+  background:white;
+
+  padding:45px;
+
+  border-radius:24px;
+
+  box-shadow:
+  0 15px 40px rgba(0,0,0,0.35);
+
+  animation:fadeIn .4s ease;
 }
 
-h1 {
-  margin-bottom: 20px;
-  color: #333;
+.logo{
+  text-align:center;
+  margin-bottom:30px;
 }
 
-input {
-  width: 100%;
-  padding: 12px;
-  margin: 10px 0;
-  border-radius: 10px;
-  border: 1px solid #ccc;
-  transition: 0.3s;
+.logo h1{
+  font-size:28px;
+  color:#111;
+  margin-bottom:8px;
 }
 
-input:focus {
-  border-color: #1a73e8;
-  outline: none;
+.logo p{
+  color:#666;
+  font-size:14px;
 }
 
-button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 15px;
-  border: none;
-  border-radius: 10px;
-  background: #1a73e8;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-  transition: 0.3s;
+form{
+  display:flex;
+  flex-direction:column;
+  gap:18px;
 }
 
-button:hover {
-  background: #155ab6;
+input,
+select{
+
+  width:100%;
+
+  padding:15px;
+
+  border-radius:12px;
+
+  border:1px solid #dcdcdc;
+
+  font-size:15px;
+
+  transition:.2s;
 }
 
-.footer {
-  margin-top: 15px;
-  font-size: 12px;
-  color: gray;
+input:focus,
+select:focus{
+
+  outline:none;
+
+  border-color:#111;
+
+  box-shadow:
+  0 0 0 4px rgba(0,0,0,0.1);
 }
 
-/* Responsive */
-@media (max-width: 500px) {
-  .container {
-    margin: 20px;
-    padding: 30px;
+button{
+
+  width:100%;
+
+  padding:15px;
+
+  border:none;
+
+  border-radius:12px;
+
+  background:#111;
+
+  color:white;
+
+  font-size:16px;
+
+  font-weight:bold;
+
+  cursor:pointer;
+
+  transition:.2s;
+}
+
+button:hover{
+  background:#2d2d2d;
+  transform:translateY(-2px);
+}
+
+.footer{
+  margin-top:20px;
+  text-align:center;
+  font-size:13px;
+  color:#777;
+}
+
+@keyframes fadeIn{
+
+  from{
+    opacity:0;
+    transform:translateY(20px);
   }
+
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+
+}
+
+@media(max-width:500px){
+
+  .container{
+    margin:20px;
+    padding:30px;
+  }
+
 }

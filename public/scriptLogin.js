@@ -1,31 +1,42 @@
-document.getElementById("loginForm").addEventListener("submit", async e => {
+document.getElementById("loginForm").addEventListener("submit", async function (e) {
   e.preventDefault();
-  const usuario = document.getElementById("usuario").value;
+
+  const usuario  = document.getElementById("usuario").value.trim();
   const password = document.getElementById("password").value;
-  const rango = document.getElementById("rango").value;
+  const rango    = document.getElementById("rango").value;
 
-   const res = await fetch("/api/login", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ usuario, password, rango })
-  });
-   const data = await res.json();
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuario, password, rango })
+    });
 
-  if (!data.success) return alert("Error");
-  
-  localStorage.setItem("id", data.id);
+    if (!res.ok) {
+      alert("Error al conectar con el servidor.");
+      return;
+    }
 
-  localStorage.setItem("usuario", data.usuario);
+    const data = await res.json();
 
-  localStorage.setItem("permiso", data.permiso);
+    if (!data.success) {
+      alert("Usuario, contraseña o rol incorrecto.");
+      return;
+    }
 
-  localStorage.setItem("rango", data.rango);
+    localStorage.setItem("id",      data.id);
+    localStorage.setItem("usuario", data.usuario);
+    localStorage.setItem("permiso", data.permiso);
+    localStorage.setItem("rango",   data.rango);
 
-  if (data.cambiar) {
-    location.href = "cambiar.html?usuario=" + data.usuario;
-  } else {
-    location.href = "dashboard.html?id=" + data.id;
+    if (data.cambiar) {
+      location.href = "cambiar.html?usuario=" + encodeURIComponent(data.usuario);
+    } else {
+      location.href = "dashboard.html";
+    }
+
+  } catch (err) {
+    console.error("Error de red:", err);
+    alert("No se pudo conectar con el servidor. Verificá tu conexión.");
   }
-    
-
 });

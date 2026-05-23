@@ -2,192 +2,270 @@
 <html lang="es">
 
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planilla</title>
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Segoe UI", sans-serif;
+    }
 
-<title>Planilla</title>
-<style>
-    *{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-    font-family:"Segoe UI",sans-serif;
-}
+    body {
+      background: #ececec;
+    }
 
-body{
-    background:#f1f3f4;
-}
+    .header {
+      background: #111;
+      color: white;
+      padding: 22px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+    }
 
-.header{
-    background:#1a73e8;
-    color:white;
-    padding:20px;
-}
+    .left-header h1 {
+      font-size: 28px;
+    }
 
-.container{
-    padding:20px;
-}
+    .left-header p {
+      color: #ccc;
+      font-size: 13px;
+    }
 
-.table-container{
-    background:white;
-    border-radius:20px;
-    padding:20px;
-    overflow:auto;
-}
+    .left-header span {
+      display: block;
+      margin-top: 8px;
+      font-size: 14px;
+      color: #d5d5d5;
+    }
 
-table{
-    width:100%;
-    min-width:1800px;
-    border-collapse:collapse;
-}
+    .volver-btn {
+      border: none;
+      background: white;
+      color: #111;
+      padding: 10px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
 
-thead{
-    background:#1a73e8;
-    color:white;
-}
+    .container {
+      padding: 25px;
+    }
 
-th,td{
-    border-bottom:1px solid #ddd;
-    padding:15px;
-    text-align:center;
-    vertical-align:top;
-}
+    .table-container {
+      background: white;
+      border-radius: 20px;
+      padding: 20px;
+      overflow: auto;
+      box-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
+    }
 
-.eval{
-    background:#f5f5f5;
-    border-radius:10px;
-    padding:10px;
-    margin-bottom:10px;
-}
+    table {
+      width: 100%;
+      min-width: 1800px;
+      border-collapse: collapse;
+    }
 
-.eval button{
-    margin-top:5px;
-    background:red;
-    color:white;
-    border:none;
-    padding:5px 10px;
-    border-radius:8px;
-    cursor:pointer;
-}
+    thead {
+      background: #111;
+      color: white;
+    }
 
-.add-btn{
-    background:#34a853;
-    color:white;
-    border:none;
-    padding:5px 10px;
-    border-radius:8px;
-    cursor:pointer;
-}
+    th,
+    td {
+      border-bottom: 1px solid #ddd;
+      padding: 15px;
+      text-align: center;
+      vertical-align: top;
+    }
 
-.prom{
-    font-weight:bold;
-    color:#1a73e8;
-    font-size:18px;
-}
-.header{
+    .eval {
+      background: #f4f4f4;
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
 
-    width:100%;
+    .eval-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
 
-    background:#1a73e8;
+    .eval-tipo {
+      font-weight: 700;
+      color: #111;
+      font-size: 14px;
+    }
 
-    color:white;
+    .eval-nota {
+      background: #111;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: bold;
+    }
 
-    padding:20px 30px;
+    .eval-desc {
+      font-size: 13px;
+      color: #444;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
 
-    display:flex;
+    .eval button {
+      margin-top: 8px;
+      background: #111;
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
 
-    justify-content:space-between;
+    .add-btn {
+      background: #333;
+      color: white;
+      border: none;
+      padding: 7px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
 
-    align-items:center;
+    .prom {
+      font-weight: bold;
+      color: #111;
+      font-size: 18px;
+    }
 
-    box-shadow:
-    0 2px 10px rgba(0,0,0,0.15);
+    .global-form {
+      background: white;
+      padding: 25px;
+      border-radius: 20px;
+      margin-bottom: 25px;
+      box-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
+    }
 
-}
+    .global-form h2 {
+      margin-bottom: 20px;
+      color: #111;
+    }
 
-.left-header h1{
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
 
-    font-size:28px;
+    .form-grid input,
+    .form-grid select {
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
 
-}
+    .alumno-global {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
 
-.right-header{
+    .alumno-global input {
+      width: 90px;
+      padding: 8px;
+    }
 
-    display:flex;
-    align-items:center;
-
-}
-
-.volver-btn{
-
-    border:none;
-
-    background:white;
-
-    color:#1a73e8;
-
-    padding:10px 18px;
-
-    border-radius:10px;
-
-    cursor:pointer;
-
-    font-weight:bold;
-
-    transition:0.2s;
-
-}
-
-.volver-btn:hover{
-
-    transform:scale(1.05);
-
-}
-</style>
-
+    .global-btn {
+      margin-top: 20px;
+      background: #111;
+      color: white;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
 </head>
 
 <body>
 
 <div class="header">
-    <div class="left-header">
-        <h1 id="materiaTitulo">
-            Materia
-        </h1>
-    </div>
-    <div class="right-header">
-        <button
-            class="volver-btn"
-            onclick="history.back()"
-        >
-            Volver
-        </button>
-
-    </div>
-
+  <div class="left-header">
+    <h1 id="materiaTitulo">Materia</h1>
+    <p>ET N°35 Ingeniero Eduardo Latzina</p>
+    <span id="materiaInfo"></span>
+  </div>
+  <button class="volver-btn" onclick="history.back()">Volver</button>
 </div>
+
 <div class="container">
-<div class="table-container">
-<table>
-<thead>
-<tr>
-<th>Alumno</th>
-<th>1er Bimestre</th>
-<th>2do Bimestre</th>
-<th>1er Cuatrimestre</th>
-<th>3er Bimestre</th>
-<th>4to Bimestre</th>
-<th>2do Cuatrimestre</th>
-<th>1er Cierre</th>
-<th>2do Cierre</th>
-<th>Nota Final</th>
-</tr>
-</thead>
-<tbody id="tbody"></tbody>
-</table>
+
+  <div class="global-form" id="globalForm" style="display:none;">
+
+    <h2>Carga global de notas</h2>
+
+    <div class="form-grid">
+      <input type="text" id="globalDescripcion" placeholder="Tema / descripción">
+
+      <select id="globalTipo">
+        <option value="Examen escrito">Examen escrito</option>
+        <option value="Oral">Oral</option>
+        <option value="TP">Trabajo práctico</option>
+        <option value="Participacion +0.5">Participación +0.5</option>
+        <option value="Participacion +1">Participación +1</option>
+        <option value="Participacion -0.5">Participación -0.5</option>
+      </select>
+
+      <select id="globalBimestre">
+        <option value="1">1er Bimestre</option>
+        <option value="2">2do Bimestre</option>
+        <option value="3">3er Bimestre</option>
+        <option value="4">4to Bimestre</option>
+      </select>
+    </div>
+
+    <div id="globalAlumnos"></div>
+
+    <button class="global-btn" onclick="guardarGlobal()">Guardar evaluación global</button>
+
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Alumno</th>
+          <th>1er Bimestre</th>
+          <th>2do Bimestre</th>
+          <th>1er Cuatrimestre</th>
+          <th>3er Bimestre</th>
+          <th>4to Bimestre</th>
+          <th>2do Cuatrimestre</th>
+          <th>1er Cierre</th>
+          <th>2do Cierre</th>
+          <th>Nota Final</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
 </div>
-</div>
+
 <script src="scriptPlanilla.js"></script>
+
 </body>
 </html>

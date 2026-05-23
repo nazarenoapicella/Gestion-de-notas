@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - Sistema Escolar</title>
+  <title>Dashboard</title>
 
   <style>
     * {
@@ -14,47 +15,64 @@
     }
 
     body {
-      background: #f1f3f4;
-      
+      background: #ececec;
     }
-
 
     .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: #1a73e8;
+      background: #111;
       color: white;
-      padding: 15px 25px;
-      font-size: 18px;
+      padding: 18px 30px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     }
 
-    .logo {
-      font-weight: bold;
+    .logo h1 {
+      font-size: 24px;
     }
 
-    .user {
-      font-size: 14px;
+    .logo p {
+      font-size: 13px;
+      color: #ccc;
     }
 
+    .user-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .user-info h2 {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .user-info span {
+      font-size: 13px;
+      color: #cfcfcf;
+    }
+
+    #userInfo {
+      font-size: 15px;
+      font-weight: 500;
+    }
 
     #container {
-      padding: 25px;
+      padding: 30px;
     }
 
-    /* GRID */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 25px;
     }
 
     .card {
       background: white;
-      border-radius: 15px;
+      border-radius: 18px;
       overflow: hidden;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-      transition: 0.3s;
+      box-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
+      transition: .25s;
       cursor: pointer;
     }
 
@@ -62,63 +80,62 @@
       transform: translateY(-5px);
     }
 
-
     .card-header {
-      height: 80px;
+      height: 90px;
+      background: #111;
       color: white;
-      padding: 10px;
+      padding: 18px;
       display: flex;
       align-items: flex-end;
+      font-size: 22px;
       font-weight: bold;
     }
 
-
     .card-body {
-      padding: 15px;
+      padding: 20px;
     }
 
     .card-body p {
-      margin: 5px 0;
+      margin-bottom: 10px;
+      color: #444;
       font-size: 14px;
-      color: #555;
     }
 
-
     .card-actions {
-  display: flex;
-  gap: 10px;
-  padding: 15px;
-}
+      display: flex;
+      gap: 10px;
+      padding: 20px;
+    }
 
-.admin-btn {
-  background: #1a73e8;
-  color: white;
-}
+    button {
+      border: none;
+      padding: 10px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: .2s;
+    }
 
-.view-btn {
-  background: #34a853;
-  color: white;
-}
+    .admin-btn {
+      background: #111;
+      color: white;
+    }
 
-button {
-  border: none;
-  padding: 10px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: 0.2s;
-  font-weight: 500;
-}
+    .view-btn {
+      background: #555;
+      color: white;
+    }
 
-button:hover {
-  transform: scale(1.03);
-  opacity: 0.9;
-}
+    button:hover {
+      opacity: .9;
+      transform: scale(1.03);
+    }
 
-    /* RESPONSIVE */
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
       .header {
         flex-direction: column;
-        gap: 5px;
+        gap: 10px;
+        align-items: flex-start;
       }
     }
   </style>
@@ -126,17 +143,19 @@ button:hover {
 
 <body>
 
-
-  <div class="header">
-    <div class="logo">Sistema Escolar</div>
-    <div id="userInfo" style="display: flex;"></div>
+<div class="header">
+  <div id="userInfo" class="user-info"></div>
+  <div class="logo">
+    <h1>ET N°35</h1>
+    <p>Ingeniero Eduardo Latzina</p>
   </div>
+</div>
 
-  <div id="container">
-    <div id="grid" class="grid"></div>
-  </div>
+<div id="container">
+  <div id="grid" class="grid"></div>
+</div>
 
-  <script src="scriptDashboard.js"></script>
+<script src="scriptDashboard.js"></script>
 
 </body>
 </html>

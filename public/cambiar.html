@@ -1,20 +1,201 @@
-<form id="form">
-<input id="pass" placeholder="Nueva contraseña">
-<button>Guardar</button>
-</form>
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cambiar contraseña</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #111, #2d2d2d, #555);
+    }
+
+    .container {
+      width: 100%;
+      max-width: 430px;
+      background: white;
+      padding: 45px;
+      border-radius: 24px;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .logo h1 {
+      font-size: 28px;
+      color: #111;
+    }
+
+    .logo p {
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .container h2 {
+      margin-bottom: 10px;
+      color: #111;
+    }
+
+    .container .desc {
+      color: #666;
+      margin-bottom: 25px;
+      line-height: 1.5;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    input {
+      padding: 15px;
+      border-radius: 12px;
+      border: 1px solid #ccc;
+      transition: .2s;
+      font-size: 15px;
+      width: 100%;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #111;
+      box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.08);
+    }
+
+    button {
+      padding: 15px;
+      border: none;
+      border-radius: 12px;
+      background: #111;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: .2s;
+      width: 100%;
+    }
+
+    button:hover {
+      background: #333;
+    }
+
+    .info {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 13px;
+      color: #777;
+    }
+
+    .error {
+      color: #c00;
+      font-size: 13px;
+      text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="logo">
+    <h1>ET N°35</h1>
+    <p>Ingeniero Eduardo Latzina</p>
+  </div>
+
+  <h2>Nueva contraseña</h2>
+
+  <p class="desc">
+    Por seguridad, debes cambiar tu contraseña antes de continuar.
+  </p>
+
+  <form id="cambiarForm">
+    <input
+      type="password"
+      id="pass"
+      placeholder="Nueva contraseña (mínimo 6 caracteres)"
+      minlength="6"
+      required
+      autocomplete="new-password"
+    >
+    <p class="error" id="errorMsg"></p>
+    <button type="submit">Guardar contraseña</button>
+  </form>
+
+  <div class="info">Sistema institucional escolar</div>
+
+</div>
 
 <script>
-const user = new URLSearchParams(location.search).get("usuario");
+  const urlParams   = new URLSearchParams(location.search);
+  const userParam   = urlParams.get("usuario");
+  const storedUser  = localStorage.getItem("usuario");
+  const userId      = localStorage.getItem("id");
+  if (!storedUser || !userParam || storedUser !== userParam) {
+    alert("Acción no autorizada.");
+    location.href = "index.html";
+  }
 
-form.onsubmit = async e => {
- e.preventDefault();
+  const cambiarForm = document.getElementById("cambiarForm");
+  const passInput   = document.getElementById("pass");
+  const errorMsg    = document.getElementById("errorMsg");
 
- await fetch("/api/cambiar-password", {
-  method:"POST",
-  headers:{"Content-Type":"application/json"},
-  body:JSON.stringify({usuario:user,nuevaPassword:pass.value})
- });
+  cambiarForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
 
- location.href="index.html";
-};
+    const nuevaPassword = passInput.value;
+
+    if (nuevaPassword.length < 6) {
+      errorMsg.textContent = "La contraseña debe tener al menos 6 caracteres.";
+      errorMsg.style.display = "block";
+      return;
+    }
+
+    errorMsg.style.display = "none";
+
+    try {
+      const res = await fetch("/api/cambiar-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usuario: userParam,
+          nuevaPassword: nuevaPassword,
+          usuarioId: userId
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        location.href = "index.html";
+      } else {
+        errorMsg.textContent = data.message || "Error al cambiar la contraseña.";
+        errorMsg.style.display = "block";
+      }
+    } catch (err) {
+      console.error("Error de red:", err);
+      errorMsg.textContent = "Error de conexión. Intenta nuevamente.";
+      errorMsg.style.display = "block";
+    }
+  });
 </script>
+
+</body>
+</html>
