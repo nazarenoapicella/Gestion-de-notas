@@ -191,20 +191,6 @@ http://localhost:3000
 
 ---
 
-# Proximas mejoras
-
-- CRUD de notas
-- Promedios automaticos
-- Boletines PDF
-- Panel administrador
-- JWT Authentication
-- Deploy online
-- Responsive avanzado
-- Buscador de alumnos
-- Estadisticas
-
----
-
 # Capturas
 
 ## Login
