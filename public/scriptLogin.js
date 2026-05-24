@@ -12,18 +12,13 @@ document.getElementById("loginForm").addEventListener("submit", async function (
       body: JSON.stringify({ usuario, password, rango })
     });
 
-    if (!res.ok) {
-      alert("Error al conectar con el servidor.");
-      return;
-    }
-
     const data = await res.json();
 
     if (!data.success) {
-      alert("Usuario, contraseña o rol incorrecto.");
+      alert(data.message || "Usuario, contraseña o rol incorrecto.");
       return;
     }
-
+    localStorage.setItem("token",   data.token);
     localStorage.setItem("id",      data.id);
     localStorage.setItem("usuario", data.usuario);
     localStorage.setItem("permiso", data.permiso);

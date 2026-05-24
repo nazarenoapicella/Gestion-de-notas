@@ -11,15 +11,17 @@ const colores = [
   "#673ab7"
 ];
 
-if (!id) {
+if (!id || !localStorage.getItem("token")) {
   location.href = "index.html";
 }
+
 
 document.getElementById("userInfo").innerText = usuario;
 
 async function cargar() {
   try {
-    const res = await fetch("/dashboard/" + id);
+    const res = await apiFetch("/dashboard/" + id);
+    if (!res) return;  
 
     if (!res.ok) {
       alert("Error al cargar el dashboard.");
@@ -29,7 +31,8 @@ async function cargar() {
     const data = await res.json();
 
     if (!data || data.length === 0) {
-      document.getElementById("grid").innerHTML = "<p style='color:#666;padding:20px;'>No hay materias asignadas.</p>";
+      document.getElementById("grid").innerHTML =
+        "<p style='color:#666;padding:20px;'>No hay materias asignadas.</p>";
       return;
     }
 
@@ -45,15 +48,15 @@ async function cargar() {
 
       card.innerHTML = `
         <div class="card-header" style="background:${color}">
-          ${materia.materia}
+          ${escHTML(materia.materia)}
         </div>
         <div class="card-body">
-          <p><strong>Curso:</strong> ${materia.anio} ${materia.division}</p>
-          <p><strong>Días:</strong> ${materia.dias}</p>
-          <p><strong>Horario:</strong> ${materia.horario}</p>
+          <p><strong>Curso:</strong> ${escHTML(materia.anio)} ${escHTML(materia.division)}</p>
+          <p><strong>Días:</strong> ${escHTML(materia.dias)}</p>
+          <p><strong>Horario:</strong> ${escHTML(materia.horario)}</p>
           ${
             rango === "regente"
-              ? `<p><strong>Profesor:</strong> ${materia.nombre_profesor} ${materia.apellido}</p>`
+              ? `<p><strong>Profesor:</strong> ${escHTML(materia.nombre_profesor)} ${escHTML(materia.apellido)}</p>`
               : ""
           }
         </div>

@@ -214,12 +214,9 @@
 <div class="container">
 
   <div class="global-form" id="globalForm" style="display:none;">
-
     <h2>Carga global de notas</h2>
-
     <div class="form-grid">
       <input type="text" id="globalDescripcion" placeholder="Tema / descripción">
-
       <select id="globalTipo">
         <option value="Examen escrito">Examen escrito</option>
         <option value="Oral">Oral</option>
@@ -228,7 +225,6 @@
         <option value="Participacion +1">Participación +1</option>
         <option value="Participacion -0.5">Participación -0.5</option>
       </select>
-
       <select id="globalBimestre">
         <option value="1">1er Bimestre</option>
         <option value="2">2do Bimestre</option>
@@ -236,11 +232,8 @@
         <option value="4">4to Bimestre</option>
       </select>
     </div>
-
     <div id="globalAlumnos"></div>
-
     <button class="global-btn" onclick="guardarGlobal()">Guardar evaluación global</button>
-
   </div>
 
   <div class="table-container">
@@ -265,6 +258,7 @@
 
 </div>
 
+<script src="api.js"></script>
 <script src="scriptPlanilla.js"></script>
 
 </body>

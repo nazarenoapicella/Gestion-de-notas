@@ -123,7 +123,7 @@
   <h2>Nueva contraseña</h2>
 
   <p class="desc">
-    Por seguridad, debes cambiar tu contraseña antes de continuar.
+    Por seguridad, debés cambiar tu contraseña antes de continuar.
   </p>
 
   <form id="cambiarForm">
@@ -143,27 +143,26 @@
 
 </div>
 
+<script src="api.js"></script>
 <script>
-  const urlParams   = new URLSearchParams(location.search);
-  const userParam   = urlParams.get("usuario");
-  const storedUser  = localStorage.getItem("usuario");
-  const userId      = localStorage.getItem("id");
-  if (!storedUser || !userParam || storedUser !== userParam) {
+  const urlParams  = new URLSearchParams(location.search);
+  const userParam  = urlParams.get("usuario");
+  const storedUser = localStorage.getItem("usuario");
+  const token      = localStorage.getItem("token");
+  const errorMsg   = document.getElementById("errorMsg");
+
+  if (!token || !storedUser || storedUser !== userParam) {
     alert("Acción no autorizada.");
     location.href = "index.html";
   }
 
-  const cambiarForm = document.getElementById("cambiarForm");
-  const passInput   = document.getElementById("pass");
-  const errorMsg    = document.getElementById("errorMsg");
-
-  cambiarForm.addEventListener("submit", async function (e) {
+  document.getElementById("cambiarForm").addEventListener("submit", async function (e) {
     e.preventDefault();
 
-    const nuevaPassword = passInput.value;
+    const nuevaPassword = document.getElementById("pass").value;
 
     if (nuevaPassword.length < 6) {
-      errorMsg.textContent = "La contraseña debe tener al menos 6 caracteres.";
+      errorMsg.textContent  = "La contraseña debe tener al menos 6 caracteres.";
       errorMsg.style.display = "block";
       return;
     }
@@ -171,27 +170,26 @@
     errorMsg.style.display = "none";
 
     try {
-      const res = await fetch("/api/cambiar-password", {
+      const res = await apiFetch("/api/cambiar-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuario: userParam,
-          nuevaPassword: nuevaPassword,
-          usuarioId: userId
-        })
+        body: JSON.stringify({ nuevaPassword })
       });
+
+      if (!res) return; 
 
       const data = await res.json();
 
       if (data.success) {
+        localStorage.clear();
         location.href = "index.html";
       } else {
-        errorMsg.textContent = data.message || "Error al cambiar la contraseña.";
+        errorMsg.textContent  = data.message || "Error al cambiar la contraseña.";
         errorMsg.style.display = "block";
       }
+
     } catch (err) {
-      console.error("Error de red:", err);
-      errorMsg.textContent = "Error de conexión. Intenta nuevamente.";
+      console.error("Error:", err);
+      errorMsg.textContent  = "Error de conexión. Intentá de nuevo.";
       errorMsg.style.display = "block";
     }
   });

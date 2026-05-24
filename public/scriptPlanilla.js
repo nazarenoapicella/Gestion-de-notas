@@ -1,10 +1,15 @@
 const params         = new URLSearchParams(location.search);
 const cursoMateriaId = params.get("materia");
 const permiso        = localStorage.getItem("permiso");
-const usuarioId      = localStorage.getItem("id");
 const tbody          = document.getElementById("tbody");
 
 let alumnosGlobales = [];
+
+if (!localStorage.getItem("token")) {
+  location.href = "index.html";
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function promedio(arr) {
   const nums = arr.map(Number).filter(n => !isNaN(n));
@@ -12,23 +17,28 @@ function promedio(arr) {
   return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2);
 }
 
+function esParticipacion(tipo) {
+  return (tipo || "").toLowerCase().includes("particip");
+}
+
+// escHTML viene de api.js y previene XSS en innerHTML
 function renderBimestre(evaluacionesAlumno, alumno, num) {
   const evaluaciones = evaluacionesAlumno.filter(e => e.bimestre == num);
   let html = "";
 
   for (const ev of evaluaciones) {
-    const esParticipacion = ev.tipo && ev.tipo.toLowerCase().includes("particip");
+    const esPartic = esParticipacion(ev.tipo);
 
     html += `
       <div class="eval">
         <div class="eval-top">
-          <span class="eval-tipo">${esParticipacion ? "Valoración" : (ev.tipo || "Evaluación")}</span>
-          <span class="eval-nota">${ev.nota}</span>
+          <span class="eval-tipo">${esPartic ? "Valoración" : escHTML(ev.tipo || "Evaluación")}</span>
+          <span class="eval-nota">${escHTML(ev.nota)}</span>
         </div>
-        <div class="eval-desc">${ev.descripcion || ""}</div>
+        <div class="eval-desc">${escHTML(ev.descripcion)}</div>
         ${
           permiso !== "lectura"
-            ? `<button onclick="eliminarEvaluacion(${ev.id}, ${alumno.id})">Eliminar</button>`
+            ? `<button onclick="eliminarEvaluacion(${Number(ev.id)}, ${Number(alumno.id)})">Eliminar</button>`
             : ""
         }
       </div>
@@ -36,7 +46,7 @@ function renderBimestre(evaluacionesAlumno, alumno, num) {
   }
 
   if (permiso !== "lectura") {
-    html += `<button class="add-btn" onclick="agregarEvaluacion(${alumno.id}, ${num})">+</button>`;
+    html += `<button class="add-btn" onclick="agregarEvaluacion(${Number(alumno.id)}, ${Number(num)})">+</button>`;
   }
 
   return html;
@@ -46,11 +56,11 @@ function calcularBimestre(evaluacionesAlumno, num) {
   const evaluaciones = evaluacionesAlumno.filter(e => e.bimestre == num);
 
   const notasNormales = evaluaciones
-    .filter(e => !(e.tipo || "").toLowerCase().includes("particip"))
+    .filter(e => !esParticipacion(e.tipo))
     .map(e => Number(e.nota));
 
   const ajustes = evaluaciones
-    .filter(e => (e.tipo || "").toLowerCase().includes("particip"))
+    .filter(e => esParticipacion(e.tipo))
     .map(e => Number(e.nota));
 
   if (notasNormales.length === 0 && ajustes.length === 0) return "-";
@@ -64,13 +74,11 @@ function calcularBimestre(evaluacionesAlumno, num) {
   return (promedioBase + ajusteTotal).toFixed(2);
 }
 
-function esParticipacion(tipo) {
-  return tipo.toLowerCase().includes("particip");
-}
+// ─── Control de inputs según tipo de participación ────────────────────────────
 
 function actualizarInputsNota() {
-  const tipo      = document.getElementById("globalTipo").value;
-  const esPartic  = esParticipacion(tipo);
+  const tipo     = document.getElementById("globalTipo").value;
+  const esPartic = esParticipacion(tipo);
 
   for (const alumno of alumnosGlobales) {
     const input = document.getElementById(`nota-${alumno.id}`);
@@ -81,7 +89,6 @@ function actualizarInputsNota() {
       input.max         = "1";
       input.step        = "1";
       input.placeholder = "0 o 1";
-
       if (input.value !== "" && input.value !== "0" && input.value !== "1") {
         input.value = "";
       }
@@ -97,9 +104,12 @@ function actualizarInputsNota() {
   }
 }
 
+// ─── Carga principal ──────────────────────────────────────────────────────────
+
 async function cargar() {
   try {
-    const res = await fetch(`/planilla/${cursoMateriaId}/${usuarioId}`);
+    const res = await apiFetch(`/planilla/${cursoMateriaId}/${localStorage.getItem("id")}`);
+    if (!res) return;
 
     if (!res.ok) {
       alert("Error al cargar la planilla.");
@@ -108,12 +118,13 @@ async function cargar() {
 
     const data = await res.json();
 
+    // escHTML en datos que se insertan en el DOM
     document.getElementById("materiaTitulo").textContent = data.materia.materia;
-    document.getElementById("materiaInfo").textContent =
+    document.getElementById("materiaInfo").textContent   =
       `${data.materia.anio}° ${data.materia.division} • ${data.materia.dias} • ${data.materia.horario}`;
 
-    tbody.innerHTML = "";
-    alumnosGlobales = data.alumnos;
+    tbody.innerHTML    = "";
+    alumnosGlobales    = data.alumnos;
 
     if (permiso === "escritura" || permiso === "ambos") {
       document.getElementById("globalForm").style.display = "block";
@@ -137,22 +148,22 @@ async function cargar() {
       const cierre2 = evaluacionesAlumno.find(e => e.cierre == "2");
 
       let final;
-      if (cierre2)       final = cierre2.nota;
-      else if (cierre1)  final = cierre1.nota;
-      else               final = promedio([cuat1, cuat2].filter(n => n !== "-"));
+      if (cierre2)      final = cierre2.nota;
+      else if (cierre1) final = cierre1.nota;
+      else              final = promedio([cuat1, cuat2].filter(n => n !== "-"));
 
       const row = document.createElement("tr");
       row.innerHTML = `
-        <td>${alumno.nombre} ${alumno.apellido}</td>
+        <td>${escHTML(alumno.nombre)} ${escHTML(alumno.apellido)}</td>
         <td>${renderBimestre(evaluacionesAlumno, alumno, 1)}</td>
         <td>${renderBimestre(evaluacionesAlumno, alumno, 2)}</td>
-        <td class="prom">${cuat1}</td>
+        <td class="prom">${escHTML(cuat1)}</td>
         <td>${renderBimestre(evaluacionesAlumno, alumno, 3)}</td>
         <td>${renderBimestre(evaluacionesAlumno, alumno, 4)}</td>
-        <td class="prom">${cuat2}</td>
-        <td class="prom">${cierre1 ? cierre1.nota : "-"}</td>
-        <td class="prom">${cierre2 ? cierre2.nota : "-"}</td>
-        <td class="prom">${final}</td>
+        <td class="prom">${escHTML(cuat2)}</td>
+        <td class="prom">${cierre1 ? escHTML(cierre1.nota) : "-"}</td>
+        <td class="prom">${cierre2 ? escHTML(cierre2.nota) : "-"}</td>
+        <td class="prom">${escHTML(final)}</td>
       `;
 
       tbody.appendChild(row);
@@ -163,6 +174,8 @@ async function cargar() {
     alert("Error de conexión al cargar la planilla.");
   }
 }
+
+// ─── Agregar evaluación individual ───────────────────────────────────────────
 
 async function agregarEvaluacion(alumnoId, bimestre) {
   if (permiso === "lectura") return;
@@ -175,7 +188,7 @@ async function agregarEvaluacion(alumnoId, bimestre) {
 
   if (esParticipacion(tipo)) {
     if (nota !== 0 && nota !== 1) {
-      alert("En participación solo se permite 0 (no aplica) o 1 (aplica)");
+      alert("En participación solo se permite 0 (no aplica) o 1 (aplica).");
       return;
     }
     if (nota === 0) return;
@@ -184,49 +197,62 @@ async function agregarEvaluacion(alumnoId, bimestre) {
     else if (tipo.includes("+0.5")) nota =  0.5;
     else if (tipo.includes("-0.5")) nota = -0.5;
     else {
-      alert("Tipo de participación no reconocido. Usá: 'Participacion +1', '+0.5' o '-0.5'");
+      alert("Tipo de participación no reconocido. Usá: 'Participacion +1', '+0.5' o '-0.5'.");
       return;
     }
   }
 
   try {
-    await fetch("/planilla/evaluacion", {
+    const res = await apiFetch("/planilla/evaluacion", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        usuarioId,
-        alumnoId,
-        cursoMateriaId,
-        tipo,
-        descripcion,
-        nota,
-        bimestre
-      })
+      body: JSON.stringify({ alumnoId, cursoMateriaId, tipo, descripcion, nota, bimestre })
     });
 
+    if (!res) return;
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || "Error al guardar.");
+      return;
+    }
+
     cargar();
+
   } catch (err) {
     console.error("Error al agregar evaluación:", err);
     alert("Error de conexión al guardar.");
   }
 }
 
+// ─── Eliminar evaluación ──────────────────────────────────────────────────────
+
 async function eliminarEvaluacion(evaluacionId, alumnoId) {
   if (permiso === "lectura") return;
 
   try {
-    await fetch("/planilla/evaluacion/" + evaluacionId, {
+    // cursoMateriaId se envía para que el servidor verifique ownership
+    const res = await apiFetch("/planilla/evaluacion/" + evaluacionId, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usuarioId, alumnoId })
+      body: JSON.stringify({ alumnoId, cursoMateriaId })
     });
 
+    if (!res) return;
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || "Error al eliminar.");
+      return;
+    }
+
     cargar();
+
   } catch (err) {
     console.error("Error al eliminar evaluación:", err);
     alert("Error de conexión al eliminar.");
   }
 }
+
+// ─── Render form carga global ─────────────────────────────────────────────────
 
 function renderGlobales() {
   const contenedor = document.getElementById("globalAlumnos");
@@ -235,21 +261,29 @@ function renderGlobales() {
   for (const alumno of alumnosGlobales) {
     const div = document.createElement("div");
     div.classList.add("alumno-global");
-    div.innerHTML = `
-      <span>${alumno.apellido} ${alumno.nombre}</span>
-      <input
-        type="number"
-        min="1"
-        max="10"
-        step="0.01"
-        placeholder="Nota"
-        id="nota-${alumno.id}"
-      >
-    `;
+
+    // textContent para nombre/apellido: seguro contra XSS
+    const span = document.createElement("span");
+    span.textContent = `${alumno.apellido} ${alumno.nombre}`;
+
+    const input = document.createElement("input");
+    input.type        = "number";
+    input.min         = "1";
+    input.max         = "10";
+    input.step        = "0.01";
+    input.placeholder = "Nota";
+    input.id          = `nota-${alumno.id}`;
+
+    div.appendChild(span);
+    div.appendChild(input);
     contenedor.appendChild(div);
   }
+
+  // Ajustar inputs según el tipo actualmente seleccionado
   actualizarInputsNota();
 }
+
+// ─── Guardar evaluación global ────────────────────────────────────────────────
 
 async function guardarGlobal() {
   if (permiso === "lectura") return;
@@ -292,24 +326,28 @@ async function guardarGlobal() {
   }
 
   try {
-    await fetch("/planilla/evaluacion-global", {
+    const res = await apiFetch("/planilla/evaluacion-global", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        usuarioId,
-        cursoMateriaId,
-        descripcion,
-        tipo,
-        bimestre,
-        notas
-      })
+      body: JSON.stringify({ cursoMateriaId, descripcion, tipo, bimestre, notas })
     });
 
+    if (!res) return;
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || "Error al guardar.");
+      return;
+    }
+
     cargar();
+
   } catch (err) {
     console.error("Error al guardar evaluación global:", err);
     alert("Error de conexión al guardar.");
   }
 }
+
+// ─── Event listeners ──────────────────────────────────────────────────────────
+
 document.getElementById("globalTipo").addEventListener("change", actualizarInputsNota);
 cargar();
