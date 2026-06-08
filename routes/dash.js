@@ -3,6 +3,9 @@ const router         = express.Router();
 const pool           = require("../db/connection");
 const authMiddleware = require("../middleware/auth");
 
+// NOTA: el parámetro :id de la URL no se usa intencionalmente.
+// La identidad del usuario se toma de req.user (JWT verificado),
+// no del parámetro de la URL, para evitar que un usuario acceda a datos de otro.
 router.get("/:id", authMiddleware, async (req, res) => {
   const { id, rango } = req.user;
   let conn;
@@ -76,7 +79,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
   } catch (err) {
     console.error("Error en dashboard:", err);
-    res.status(500).json({ error: "Error del servidor" });
+    res.status(500).json({ success: false, error: "Error del servidor" });
   } finally {
     if (conn) conn.release();
   }

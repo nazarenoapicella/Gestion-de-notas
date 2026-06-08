@@ -17,7 +17,6 @@ async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = f
     if (requiereEscritura && permiso === "lectura") {
       return { ok: false, status: 403, error: "Sin permisos de escritura" };
     }
-    // Verificar que este profesor esté asignado a la materia
     const pm = await conn.query(
       "SELECT id FROM profesor_materia WHERE profesor_id = ? AND curso_materia_id = ?",
       [id, cursoMateriaId]
@@ -32,7 +31,6 @@ async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = f
     if (requiereEscritura) {
       return { ok: false, status: 403, error: "Sin permisos" };
     }
-    // Verificar que el alumno esté inscripto en el curso de esta materia
     const ac = await conn.query(`
       SELECT ac.id
       FROM alumno_curso ac
@@ -48,8 +46,6 @@ async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = f
   return { ok: false, status: 403, error: "Rango no reconocido" };
 }
 
-// Verifica en una sola query que TODOS los alumnoIds estén inscriptos
-// en el cursoMateriaId. Reemplaza el bucle con N queries individuales.
 async function alumnosEnCurso(conn, alumnoIds, cursoMateriaId) {
   if (!alumnoIds || alumnoIds.length === 0) return { ok: true, faltante: null };
 
@@ -70,7 +66,6 @@ async function alumnosEnCurso(conn, alumnoIds, cursoMateriaId) {
   return { ok: true, faltante: null };
 }
 
-// Versión individual usada por POST /evaluacion
 async function alumnoEnCurso(conn, alumnoId, cursoMateriaId) {
   const rows = await conn.query(`
     SELECT ac.id
@@ -97,6 +92,8 @@ function idEnteroValido(val) {
 
 // ─── GET planilla ─────────────────────────────────────────────────────────────
 
+// NOTA: :usuarioId no se usa intencionalmente — la identidad se toma del JWT.
+// Se mantiene en la URL para no romper compatibilidad con el frontend.
 router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
   const { cursoMateriaId } = req.params;
   const user = req.user;
@@ -135,7 +132,6 @@ router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
     let alumnos, evaluaciones;
 
     if (user.rango === "alumno") {
-      // El alumno solo ve su propia fila, no las de sus compañeros
       alumnos = await conn.query(
         "SELECT id, nombre, apellido FROM usuarios WHERE id = ?",
         [user.id]
@@ -193,7 +189,6 @@ router.post("/evaluacion", authMiddleware, async (req, res) => {
   const { alumnoId, cursoMateriaId, tipo, descripcion, nota, bimestre, cierre } = req.body;
   const user = req.user;
 
-  // Validaciones de entrada
   if (!idEnteroValido(alumnoId) || !idEnteroValido(cursoMateriaId)) {
     return res.status(400).json({ success: false, error: "Datos incompletos o inválidos" });
   }
@@ -219,12 +214,15 @@ router.post("/evaluacion", authMiddleware, async (req, res) => {
       return res.status(acceso.status).json({ success: false, error: acceso.error });
     }
 
-    // Verificar que el alumno pertenezca a este curso
+    // FIX: beginTransaction antes de las verificaciones de datos para evitar
+    // race condition entre la verificación de inscripción y el INSERT.
+    await conn.beginTransaction();
+
+    // Verificar que el alumno pertenezca a este curso (dentro de la transacción)
     if (!(await alumnoEnCurso(conn, alumnoId, cursoMateriaId))) {
+      await conn.rollback();
       return res.status(400).json({ success: false, error: "El alumno no está inscripto en este curso" });
     }
-
-    await conn.beginTransaction();
 
     const result = await conn.query(`
       INSERT INTO evaluaciones (curso_materia_id, tipo, descripcion, fecha, bimestre, cierre)
@@ -296,14 +294,15 @@ router.post("/evaluacion-global", authMiddleware, async (req, res) => {
       return res.status(acceso.status).json({ success: false, error: acceso.error });
     }
 
-    // Una sola query para verificar todos los alumnos 
+    // FIX: beginTransaction antes de verificar alumnos para evitar race condition.
+    await conn.beginTransaction();
+
     const alumnoIds = notas.map(n => n.alumnoId);
     const check = await alumnosEnCurso(conn, alumnoIds, cursoMateriaId);
     if (!check.ok) {
+      await conn.rollback();
       return res.status(400).json({ success: false, error: `El alumno ${check.faltante} no está inscripto en este curso` });
     }
-
-    await conn.beginTransaction();
 
     const result = await conn.query(`
       INSERT INTO evaluaciones (curso_materia_id, tipo, descripcion, fecha, bimestre)
@@ -355,8 +354,6 @@ router.delete("/evaluacion/:id", authMiddleware, async (req, res) => {
       return res.status(acceso.status).json({ success: false, error: acceso.error });
     }
 
-    // Verificar que la evaluación pertenezca a este cursoMateria
-    // (evita que un profesor borre evaluaciones de otras materias)
     const evalCheck = await conn.query(
       "SELECT id FROM evaluaciones WHERE id = ? AND curso_materia_id = ?",
       [id, cursoMateriaId]
