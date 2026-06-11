@@ -44,49 +44,70 @@ function calcularSaldadas(evaluacionesAlumno) {
 }
 
 /**
- * Calcula el promedio de un bimestre.
+ * Calcula el promedio VISUAL de un bimestre (lo que se muestra en la celda).
  *
- * REGLA CLAVE: si el bimestre tiene evaluaciones saldadas (tachadas),
- * el bimestre donde VIVÍAN esas evaluaciones sigue mostrando DESAPROBADO
- * para dejar registro. Las saldadas se excluyen del promedio pero no
- * "salvan" al bimestre de origen.
- *
- * El bimestre de la evaluación ACUMULATIVA (aprobada) sí se calcula
- * normalmente excluyendo la saldada del promedio.
- *
- * Flujo:
- * 1. Filtrar evaluaciones del bimestre.
- * 2. Separar participaciones del resto.
- * 3. De las normales, detectar cuáles están saldadas.
- * 4. Si quedan desaprobadas sin saldar O hay saldadas en este bimestre
- *    (registro de que hubo una desaprobada) → DESAPROBADO.
- * 5. Si no → promedio de las que quedan + ajuste de participaciones.
+ * - Si el bimestre tiene evaluaciones saldadas → DESAPROBADO (registro histórico).
+ * - Si quedan desaprobadas sin saldar → DESAPROBADO.
+ * - Si no → promedio de las normales + ajuste de participaciones.
  */
 function calcularBimestre(evaluacionesAlumno, num) {
   const evaluaciones = evaluacionesAlumno.filter(e => Number(e.bimestre) === Number(num));
   if (evaluaciones.length === 0) return "-";
 
-  const saldadas = calcularSaldadas(evaluacionesAlumno);
-
+  const saldadas        = calcularSaldadas(evaluacionesAlumno);
   const participaciones = evaluaciones.filter(e =>  esParticipacion(e.tipo));
   const normales        = evaluaciones.filter(e => !esParticipacion(e.tipo));
 
-  // ¿Hay alguna evaluación saldada en ESTE bimestre?
-  // Si la hay, es porque este bimestre tuvo una desaprobada → sigue DESAPROBADO
-  const tieneSaldadasEnEsteBimestre = normales.some(e => saldadas.has(Number(e.id)));
-
-  if (tieneSaldadasEnEsteBimestre) {
+  // Si hay saldadas en este bimestre → DESAPROBADO (queda registro)
+  if (normales.some(e => saldadas.has(Number(e.id)))) {
     return "DESAPROBADO";
   }
 
-  // Sin saldadas en este bimestre: calcular normalmente
-  const paraPromedio = normales; // ninguna está saldada acá
-
-  const desaprobadasSinSaldar = paraPromedio.filter(e => Number(e.nota) < 6);
-  if (desaprobadasSinSaldar.length > 0) {
+  // Si quedan desaprobadas sin saldar → DESAPROBADO
+  if (normales.some(e => Number(e.nota) < 6)) {
     return "DESAPROBADO";
   }
 
+  if (normales.length === 0 && participaciones.length === 0) return "-";
+
+  const promedioBase = normales.length > 0
+    ? normales.reduce((sum, e) => sum + Number(e.nota), 0) / normales.length
+    : 0;
+
+  const ajuste = participaciones.reduce((sum, e) => sum + Number(e.nota), 0);
+
+  return (promedioBase + ajuste).toFixed(2);
+}
+
+/**
+ * Calcula el promedio EFECTIVO de un bimestre para usar en el cuatrimestre.
+ *
+ * A diferencia de calcularBimestre (que es visual), esta función:
+ * - EXCLUYE las evaluaciones saldadas del promedio.
+ * - Si después de excluir saldadas quedan desaprobadas sin saldar → "DESAPROBADO".
+ * - Si no quedan evaluaciones normales (todas saldadas o vacío) pero hay
+ *   evaluaciones acumulativas aprobadas en OTROS bimestres que apuntan a este
+ *   → se promedia solo lo que queda (puede ser solo participaciones).
+ *
+ * Esta es la nota que realmente "pesa" en el cuatrimestre.
+ */
+function calcularBimestreEfectivo(evaluacionesAlumno, num) {
+  const evaluaciones = evaluacionesAlumno.filter(e => Number(e.bimestre) === Number(num));
+  if (evaluaciones.length === 0) return "-";
+
+  const saldadas        = calcularSaldadas(evaluacionesAlumno);
+  const participaciones = evaluaciones.filter(e =>  esParticipacion(e.tipo));
+  const normales        = evaluaciones.filter(e => !esParticipacion(e.tipo));
+
+  // Excluir las saldadas del cálculo efectivo
+  const paraPromedio = normales.filter(e => !saldadas.has(Number(e.id)));
+
+  // Si quedan desaprobadas sin saldar → el bimestre sigue siendo DESAPROBADO
+  if (paraPromedio.some(e => Number(e.nota) < 6)) {
+    return "DESAPROBADO";
+  }
+
+  // Si no quedan normales (todas fueron saldadas) y no hay participaciones → "-"
   if (paraPromedio.length === 0 && participaciones.length === 0) return "-";
 
   const promedioBase = paraPromedio.length > 0
@@ -99,18 +120,25 @@ function calcularBimestre(evaluacionesAlumno, num) {
 }
 
 /**
- * Calcula el promedio de cuatrimestre.
- * Si algún bimestre es DESAPROBADO → cuatrimestre DESAPROBADO.
+ * Calcula el cuatrimestre usando los valores EFECTIVOS de cada bimestre.
+ *
+ * - Si algún bimestre efectivo es DESAPROBADO → cuatrimestre DESAPROBADO.
+ * - Si ambos son "-" → "-".
+ * - Si no → promedio de los que tienen valor numérico.
  */
-function calcularCuatrimestre(b1, b2) {
-  if (b1 === "DESAPROBADO" || b2 === "DESAPROBADO") return "DESAPROBADO";
-  const nums = [b1, b2].filter(n => n !== "-").map(Number);
+function calcularCuatrimestre(evaluacionesAlumno, b1, b2) {
+  const ef1 = calcularBimestreEfectivo(evaluacionesAlumno, b1);
+  const ef2 = calcularBimestreEfectivo(evaluacionesAlumno, b2);
+
+  if (ef1 === "DESAPROBADO" || ef2 === "DESAPROBADO") return "DESAPROBADO";
+
+  const nums = [ef1, ef2].filter(n => n !== "-").map(Number);
   if (nums.length === 0) return "-";
   return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2);
 }
 
 /**
- * El alumno necesita cierres si algún cuatrimestre es DESAPROBADO
+ * Necesita cierres si el cuatrimestre es DESAPROBADO
  * o el promedio anual < 6.
  */
 function necesitaCierres(cuat1, cuat2) {
@@ -181,8 +209,6 @@ function renderBimestre(evaluacionesAlumno, alumno, num) {
     `;
   }
 
-  // SIN botón + : la carga individual fue eliminada, solo existe carga global
-
   html += renderResumenBimestre(promBim);
   return html;
 }
@@ -219,13 +245,15 @@ async function cargar() {
     for (const alumno of data.alumnos) {
       const evAlumno = data.notas.filter(n => n.alumno_id == alumno.id);
 
+      // Visual (para mostrar en celda)
       const prom1 = calcularBimestre(evAlumno, 1);
       const prom2 = calcularBimestre(evAlumno, 2);
       const prom3 = calcularBimestre(evAlumno, 3);
       const prom4 = calcularBimestre(evAlumno, 4);
 
-      const cuat1 = calcularCuatrimestre(prom1, prom2);
-      const cuat2 = calcularCuatrimestre(prom3, prom4);
+      // Efectivo (para calcular cuatrimestre)
+      const cuat1 = calcularCuatrimestre(evAlumno, 1, 2);
+      const cuat2 = calcularCuatrimestre(evAlumno, 3, 4);
 
       const habilitarCierres = necesitaCierres(cuat1, cuat2);
 
@@ -507,8 +535,7 @@ function actualizarSelectOrigen() {
     return;
   }
 
-  // Todas las evaluaciones del curso, deduplicadas por id
-  const vistas      = new Set();
+  const vistas       = new Set();
   const evalsPrevias = [];
   for (const ev of evaluacionesGlobal) {
     if (!vistas.has(Number(ev.id))) {
