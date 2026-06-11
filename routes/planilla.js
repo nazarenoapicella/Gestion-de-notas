@@ -3,6 +3,8 @@ const router         = express.Router();
 const pool           = require("../db/connection");
 const authMiddleware = require("../middleware/auth");
 
+// ─── Verificar acceso ─────────────────────────────────────────────────────────
+
 async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = false) {
   const { id, rango, permiso } = user;
 
@@ -27,6 +29,24 @@ async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = f
     return { ok: true };
   }
 
+  if (rango === "preceptor") {
+    // El preceptor solo puede leer
+    if (requiereEscritura) {
+      return { ok: false, status: 403, error: "Sin permisos de escritura" };
+    }
+    // Verificar que el curso de esta materia le pertenezca
+    const pc = await conn.query(`
+      SELECT pc.id
+      FROM preceptor_curso pc
+      JOIN curso_materia cm ON cm.curso_id = pc.curso_id
+      WHERE pc.preceptor_id = ? AND cm.id = ?
+    `, [id, cursoMateriaId]);
+    if (!pc || pc.length === 0) {
+      return { ok: false, status: 403, error: "No tenés asignado este curso" };
+    }
+    return { ok: true };
+  }
+
   if (rango === "alumno") {
     if (requiereEscritura) {
       return { ok: false, status: 403, error: "Sin permisos" };
@@ -46,18 +66,17 @@ async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = f
   return { ok: false, status: 403, error: "Rango no reconocido" };
 }
 
+// ─── Helpers de validación ────────────────────────────────────────────────────
+
 async function alumnosEnCurso(conn, alumnoIds, cursoMateriaId) {
   if (!alumnoIds || alumnoIds.length === 0) return { ok: true, faltante: null };
-
   const rows = await conn.query(`
     SELECT DISTINCT ac.alumno_id
     FROM alumno_curso ac
     JOIN curso_materia cm ON ac.curso_id = cm.curso_id
     WHERE ac.alumno_id IN (?) AND cm.id = ?
   `, [alumnoIds, cursoMateriaId]);
-
   const inscritosSet = new Set(rows.map(r => Number(r.alumno_id)));
-
   for (const aid of alumnoIds) {
     if (!inscritosSet.has(Number(aid))) {
       return { ok: false, faltante: aid };
@@ -90,10 +109,21 @@ function idEnteroValido(val) {
   return !isNaN(n) && n > 0;
 }
 
+// Verifica que evaluacionOrigenId exista y pertenezca al mismo cursoMateriaId
+async function validarEvaluacionOrigen(conn, evaluacionOrigenId, cursoMateriaId) {
+  if (!evaluacionOrigenId) return { ok: true };
+  const rows = await conn.query(
+    "SELECT id FROM evaluaciones WHERE id = ? AND curso_materia_id = ?",
+    [evaluacionOrigenId, cursoMateriaId]
+  );
+  if (!rows || rows.length === 0) {
+    return { ok: false, error: "La evaluación de origen no pertenece a este curso" };
+  }
+  return { ok: true };
+}
+
 // ─── GET planilla ─────────────────────────────────────────────────────────────
 
-// NOTA: :usuarioId no se usa intencionalmente — la identidad se toma del JWT.
-// Se mantiene en la URL para no romper compatibilidad con el frontend.
 router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
   const { cursoMateriaId } = req.params;
   const user = req.user;
@@ -139,6 +169,7 @@ router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
       evaluaciones = await conn.query(`
         SELECT
           e.id, e.tipo, e.descripcion, e.fecha, e.bimestre, e.cierre,
+          e.es_acumulativo, e.evaluacion_origen_id,
           n.alumno_id, n.nota
         FROM evaluaciones e
         INNER JOIN notas n ON e.id = n.evaluacion_id
@@ -159,6 +190,7 @@ router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
       evaluaciones = await conn.query(`
         SELECT
           e.id, e.tipo, e.descripcion, e.fecha, e.bimestre, e.cierre,
+          e.es_acumulativo, e.evaluacion_origen_id,
           n.alumno_id, n.nota
         FROM evaluaciones e
         INNER JOIN notas n ON e.id = n.evaluacion_id
@@ -186,7 +218,11 @@ router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
 // ─── POST evaluacion individual ───────────────────────────────────────────────
 
 router.post("/evaluacion", authMiddleware, async (req, res) => {
-  const { alumnoId, cursoMateriaId, tipo, descripcion, nota, bimestre, cierre } = req.body;
+  const {
+    alumnoId, cursoMateriaId, tipo, descripcion,
+    nota, bimestre, cierre,
+    esAcumulativo, evaluacionOrigenId
+  } = req.body;
   const user = req.user;
 
   if (!idEnteroValido(alumnoId) || !idEnteroValido(cursoMateriaId)) {
@@ -204,6 +240,10 @@ router.post("/evaluacion", authMiddleware, async (req, res) => {
   if (descripcion && String(descripcion).length > 500) {
     return res.status(400).json({ success: false, error: "La descripción supera los 500 caracteres" });
   }
+  // Si marca como acumulativa, debe indicar de qué evaluación es origen
+  if (esAcumulativo && !idEnteroValido(evaluacionOrigenId)) {
+    return res.status(400).json({ success: false, error: "Debe indicar la evaluación de origen para una acumulativa" });
+  }
 
   let conn;
   try {
@@ -214,26 +254,35 @@ router.post("/evaluacion", authMiddleware, async (req, res) => {
       return res.status(acceso.status).json({ success: false, error: acceso.error });
     }
 
-    // FIX: beginTransaction antes de las verificaciones de datos para evitar
-    // race condition entre la verificación de inscripción y el INSERT.
     await conn.beginTransaction();
 
-    // Verificar que el alumno pertenezca a este curso (dentro de la transacción)
     if (!(await alumnoEnCurso(conn, alumnoId, cursoMateriaId))) {
       await conn.rollback();
       return res.status(400).json({ success: false, error: "El alumno no está inscripto en este curso" });
     }
 
+    // Validar que la evaluación origen pertenezca a este curso
+    if (esAcumulativo) {
+      const origenCheck = await validarEvaluacionOrigen(conn, evaluacionOrigenId, cursoMateriaId);
+      if (!origenCheck.ok) {
+        await conn.rollback();
+        return res.status(400).json({ success: false, error: origenCheck.error });
+      }
+    }
+
     const result = await conn.query(`
-      INSERT INTO evaluaciones (curso_materia_id, tipo, descripcion, fecha, bimestre, cierre)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO evaluaciones
+        (curso_materia_id, tipo, descripcion, fecha, bimestre, cierre, es_acumulativo, evaluacion_origen_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       cursoMateriaId,
       tipo        ? String(tipo).substring(0, 100)        : null,
       descripcion ? String(descripcion).substring(0, 500) : null,
       new Date(),
-      bimestre || null,
-      cierre   || null
+      bimestre            || null,
+      cierre              || null,
+      esAcumulativo ? 1   : 0,
+      esAcumulativo ? Number(evaluacionOrigenId) : null
     ]);
 
     const evaluacionId = Number(result.insertId);
@@ -258,7 +307,10 @@ router.post("/evaluacion", authMiddleware, async (req, res) => {
 // ─── POST evaluacion-global ───────────────────────────────────────────────────
 
 router.post("/evaluacion-global", authMiddleware, async (req, res) => {
-  const { cursoMateriaId, tipo, descripcion, bimestre, notas } = req.body;
+  const {
+    cursoMateriaId, tipo, descripcion, bimestre, notas,
+    esAcumulativo, evaluacionOrigenId
+  } = req.body;
   const user = req.user;
 
   if (!idEnteroValido(cursoMateriaId) || !descripcion || !bimestre || !Array.isArray(notas) || notas.length === 0) {
@@ -275,6 +327,9 @@ router.post("/evaluacion-global", authMiddleware, async (req, res) => {
   }
   if (tipo && String(tipo).length > 100) {
     return res.status(400).json({ success: false, error: "El tipo supera los 100 caracteres" });
+  }
+  if (esAcumulativo && !idEnteroValido(evaluacionOrigenId)) {
+    return res.status(400).json({ success: false, error: "Debe indicar la evaluación de origen para una acumulativa" });
   }
   for (const n of notas) {
     if (!idEnteroValido(n.alumnoId)) {
@@ -294,7 +349,6 @@ router.post("/evaluacion-global", authMiddleware, async (req, res) => {
       return res.status(acceso.status).json({ success: false, error: acceso.error });
     }
 
-    // FIX: beginTransaction antes de verificar alumnos para evitar race condition.
     await conn.beginTransaction();
 
     const alumnoIds = notas.map(n => n.alumnoId);
@@ -304,15 +358,26 @@ router.post("/evaluacion-global", authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, error: `El alumno ${check.faltante} no está inscripto en este curso` });
     }
 
+    if (esAcumulativo) {
+      const origenCheck = await validarEvaluacionOrigen(conn, evaluacionOrigenId, cursoMateriaId);
+      if (!origenCheck.ok) {
+        await conn.rollback();
+        return res.status(400).json({ success: false, error: origenCheck.error });
+      }
+    }
+
     const result = await conn.query(`
-      INSERT INTO evaluaciones (curso_materia_id, tipo, descripcion, fecha, bimestre)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO evaluaciones
+        (curso_materia_id, tipo, descripcion, fecha, bimestre, es_acumulativo, evaluacion_origen_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [
       cursoMateriaId,
       tipo ? String(tipo).substring(0, 100) : null,
       String(descripcion).substring(0, 500),
       new Date(),
-      bimestre
+      bimestre,
+      esAcumulativo ? 1   : 0,
+      esAcumulativo ? Number(evaluacionOrigenId) : null
     ]);
 
     const evaluacionId = Number(result.insertId);

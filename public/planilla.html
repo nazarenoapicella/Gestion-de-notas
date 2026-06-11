@@ -14,9 +14,7 @@
       font-family: "Segoe UI", sans-serif;
     }
 
-    body {
-      background: #ececec;
-    }
+    body { background: #ececec; }
 
     .header {
       background: #111;
@@ -25,18 +23,11 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 2px 10px rgba(0,0,0,.15);
     }
 
-    .left-header h1 {
-      font-size: 28px;
-    }
-
-    .left-header p {
-      color: #ccc;
-      font-size: 13px;
-    }
-
+    .left-header h1 { font-size: 28px; }
+    .left-header p  { color: #ccc; font-size: 13px; }
     .left-header span {
       display: block;
       margin-top: 8px;
@@ -54,16 +45,14 @@
       font-weight: bold;
     }
 
-    .container {
-      padding: 25px;
-    }
+    .container { padding: 25px; }
 
     .table-container {
       background: white;
       border-radius: 20px;
       padding: 20px;
       overflow: auto;
-      box-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
+      box-shadow: 0 5px 18px rgba(0,0,0,.12);
     }
 
     table {
@@ -72,92 +61,150 @@
       border-collapse: collapse;
     }
 
-    thead {
-      background: #111;
-      color: white;
-    }
+    thead { background: #111; color: white; }
 
-    th,
-    td {
+    th, td {
       border-bottom: 1px solid #ddd;
       padding: 15px;
       text-align: center;
       vertical-align: top;
     }
 
+    /* ── Evaluación ── */
     .eval {
       background: #f4f4f4;
       border-radius: 10px;
       padding: 10px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
+    }
+
+    .eval-saldada {
+      opacity: 0.45;
+      text-decoration: line-through;
     }
 
     .eval-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .eval-tipo {
       font-weight: 700;
       color: #111;
-      font-size: 14px;
+      font-size: 13px;
+      text-align: left;
     }
 
     .eval-nota {
       background: #111;
       color: white;
-      padding: 4px 10px;
+      padding: 3px 9px;
       border-radius: 999px;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: bold;
+      white-space: nowrap;
     }
+
+    .eval-nota-roja { background: #c00 !important; }
+    .eval-nota-gris { background: #999 !important; }
 
     .eval-desc {
-      font-size: 13px;
-      color: #444;
+      font-size: 12px;
+      color: #555;
       line-height: 1.4;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
+      text-align: left;
     }
 
+    .eval-acum-badge {
+      display: inline-block;
+      background: #1a73e8;
+      color: white;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      margin-bottom: 5px;
+    }
+
+    /* Botón eliminar: único botón dentro de cada evaluación */
     .eval button {
-      margin-top: 8px;
-      background: #111;
+      margin-top: 6px;
+      background: #c00;
       color: white;
       border: none;
-      padding: 6px 10px;
-      border-radius: 8px;
+      padding: 5px 10px;
+      border-radius: 7px;
       cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
     }
 
+    .eval button:hover { background: #a00; }
+
+    /* Botón de cierres (sigue existiendo) */
     .add-btn {
       background: #333;
       color: white;
       border: none;
-      padding: 7px 12px;
+      padding: 6px 11px;
       border-radius: 8px;
       cursor: pointer;
+      font-size: 12px;
+      margin-top: 4px;
     }
 
+    .add-btn:hover { background: #555; }
+
+    /* ── Resumen bimestre ── */
+    .bim-resumen {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 2px solid #ddd;
+      background: #f9f9f9;
+      border-radius: 0 0 8px 8px;
+    }
+
+    .bim-resumen-label {
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 3px;
+    }
+
+    .bim-resumen-valor {
+      font-size: 17px;
+      font-weight: 800;
+      color: #111;
+    }
+
+    .bim-resumen-valor.desaprobado { color: #c00; }
+    .bim-resumen-valor.aprobado    { color: #1a7a1a; }
+
+    /* ── Columnas cuatrimestre / final ── */
     .prom {
       font-weight: bold;
       color: #111;
       font-size: 18px;
     }
 
+    .nota-previa {
+      color: #c00 !important;
+      font-size: 15px !important;
+    }
+
+    /* ── Formulario global ── */
     .global-form {
       background: white;
       padding: 25px;
       border-radius: 20px;
       margin-bottom: 25px;
-      box-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
+      box-shadow: 0 5px 18px rgba(0,0,0,.12);
     }
 
-    .global-form h2 {
-      margin-bottom: 20px;
-      color: #111;
-    }
+    .global-form h2 { margin-bottom: 20px; color: #111; }
 
     .form-grid {
       display: grid;
@@ -173,6 +220,31 @@
       border: 1px solid #ccc;
     }
 
+    .acum-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    .acum-row label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .acum-row select {
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
     .alumno-global {
       display: flex;
       align-items: center;
@@ -182,10 +254,7 @@
       border-bottom: 1px solid #eee;
     }
 
-    .alumno-global input {
-      width: 90px;
-      padding: 8px;
-    }
+    .alumno-global input { width: 90px; padding: 8px; }
 
     .global-btn {
       margin-top: 20px;
@@ -197,6 +266,8 @@
       cursor: pointer;
       font-weight: bold;
     }
+
+    .global-btn:hover { background: #333; }
   </style>
 </head>
 
@@ -232,6 +303,17 @@
         <option value="4">4to Bimestre</option>
       </select>
     </div>
+
+    <div class="acum-row">
+      <label>
+        <input type="checkbox" id="globalEsAcumulativo" onchange="actualizarSelectOrigen()">
+        Esta evaluación es acumulativa de una anterior
+      </label>
+      <div id="origenContenedor" style="display:none;">
+        <select id="globalEvaluacionOrigen"></select>
+      </div>
+    </div>
+
     <div id="globalAlumnos"></div>
     <button class="global-btn" onclick="guardarGlobal()">Guardar evaluación global</button>
   </div>

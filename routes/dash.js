@@ -3,9 +3,6 @@ const router         = express.Router();
 const pool           = require("../db/connection");
 const authMiddleware = require("../middleware/auth");
 
-// NOTA: el parámetro :id de la URL no se usa intencionalmente.
-// La identidad del usuario se toma de req.user (JWT verificado),
-// no del parámetro de la URL, para evitar que un usuario acceda a datos de otro.
 router.get("/:id", authMiddleware, async (req, res) => {
   const { id, rango } = req.user;
   let conn;
@@ -72,6 +69,28 @@ router.get("/:id", authMiddleware, async (req, res) => {
         JOIN profesor_materia pm ON pm.curso_materia_id = cm.id
         JOIN usuarios u          ON u.id  = pm.profesor_id
       `);
+
+    } else if (rango === "preceptor") {
+
+      // El preceptor ve todas las materias de los cursos que tiene asignados
+      resultado = await conn.query(`
+        SELECT
+          cm.id,
+          m.nombre     AS materia,
+          c.anio,
+          c.division,
+          cm.dias,
+          cm.horario,
+          u.nombre     AS nombre_profesor,
+          u.apellido
+        FROM preceptor_curso pc
+        JOIN cursos c            ON pc.curso_id    = c.id
+        JOIN curso_materia cm    ON cm.curso_id    = c.id
+        JOIN materias m          ON m.id           = cm.materia_id
+        JOIN profesor_materia pm ON pm.curso_materia_id = cm.id
+        JOIN usuarios u          ON u.id           = pm.profesor_id
+        WHERE pc.preceptor_id = ?
+      `, [id]);
 
     }
 
