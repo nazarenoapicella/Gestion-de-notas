@@ -12,7 +12,6 @@ Sistema de gestión académica desarrollado para la Escuela Técnica N°35 "Inge
 | Autenticación | JSON Web Tokens (JWT) |
 | Hash de contraseñas | bcrypt |
 | Rate limiting | express-rate-limit |
-| Seguridad HTTP | Helmet |
 | Variables de entorno | dotenv |
 
 ---
@@ -32,7 +31,6 @@ Sistema de gestión académica desarrollado para la Escuela Técnica N°35 "Inge
 - Nota final PREVIA si el alumno no aprueba ningún cierre administrativo
 - Control de acceso por materia y por alumno (un profesor solo accede a lo suyo)
 - Protección XSS en el frontend (escHTML) y consultas parametrizadas en el backend
-- Headers de seguridad HTTP mediante Helmet
 
 ---
 
@@ -317,7 +315,6 @@ http://localhost:3000
 | bcrypt (salt 10) | Hash seguro de contraseñas, nunca se almacena texto plano |
 | Dummy hash timing-safe | Prevención de enumeración de usuarios por diferencia de tiempo de respuesta |
 | Rate limiting | Máximo 10 intentos de login por IP cada 15 minutos |
-| Helmet | Headers de seguridad HTTP: X-Frame-Options, X-Content-Type-Options, HSTS y otros |
 | authMiddleware | Verifica JWT en todas las rutas protegidas |
 | Validación de ownership | Profesores solo acceden a sus propias materias; preceptores solo a sus cursos asignados |
 | Validación de rango | Lista blanca de roles válidos en login |
