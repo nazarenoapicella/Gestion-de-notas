@@ -58,20 +58,40 @@ function calcularBimestre(evaluacionesAlumno, num) {
   const participaciones = evaluaciones.filter(e =>  esParticipacion(e.tipo));
   const normales        = evaluaciones.filter(e => !esParticipacion(e.tipo));
 
-  // Si hay saldadas en este bimestre → DESAPROBADO (queda registro)
-  if (normales.some(e => saldadas.has(Number(e.id)))) {
-    return "DESAPROBADO";
+  // Detectar saldadas que están en este bimestre
+  const saldadasEnEsteBimestre = normales.filter(e => saldadas.has(Number(e.id)));
+
+  // Para cada saldada en este bimestre, buscar si su acumulativa también
+  // está en este mismo bimestre. Si la acumulativa es de OTRO bimestre,
+  // este bimestre queda DESAPROBADO como registro histórico.
+  // Si la acumulativa es del MISMO bimestre, se excluye la saldada y se promedia.
+  for (const saldada of saldadasEnEsteBimestre) {
+    const acumulativa = evaluacionesAlumno.find(
+      e =>
+        Number(e.es_acumulativo) === 1 &&
+        Number(e.evaluacion_origen_id) === Number(saldada.id) &&
+        Number(e.nota) >= 6
+    );
+    // Si la acumulativa que salda a esta evaluación es de OTRO bimestre
+    // → este bimestre queda DESAPROBADO (ya había cerrado con esa desaprobada)
+    if (acumulativa && Number(acumulativa.bimestre) !== Number(num)) {
+      return "DESAPROBADO";
+    }
+    // Si la acumulativa es del MISMO bimestre → se excluye del promedio (continúa)
   }
+
+  // Calcular con las normales que no están saldadas
+  const paraPromedio = normales.filter(e => !saldadas.has(Number(e.id)));
 
   // Si quedan desaprobadas sin saldar → DESAPROBADO
-  if (normales.some(e => Number(e.nota) < 6)) {
+  if (paraPromedio.some(e => Number(e.nota) < 6)) {
     return "DESAPROBADO";
   }
 
-  if (normales.length === 0 && participaciones.length === 0) return "-";
+  if (paraPromedio.length === 0 && participaciones.length === 0) return "-";
 
-  const promedioBase = normales.length > 0
-    ? normales.reduce((sum, e) => sum + Number(e.nota), 0) / normales.length
+  const promedioBase = paraPromedio.length > 0
+    ? paraPromedio.reduce((sum, e) => sum + Number(e.nota), 0) / paraPromedio.length
     : 0;
 
   const ajuste = participaciones.reduce((sum, e) => sum + Number(e.nota), 0);
