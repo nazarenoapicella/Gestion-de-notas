@@ -538,5 +538,89 @@ router.delete("/evaluacion/:id", authMiddleware, async (req, res) => {
     if (conn) conn.release();
   }
 });
+// ─── PATCH cierre-tema ────────────────────────────────────────────────────────
+// Actualiza la nota de un tema de diciembre para un alumno específico.
+// Se usa en febrero: el profesor selecciona un tema desaprobado de diciembre
+// y carga la nueva nota. La nota se guarda sobre la fila existente en `notas`.
 
+router.patch("/cierre-tema", authMiddleware, async (req, res) => {
+  const { evaluacionId, alumnoId, cursoMateriaId, nota, numeroCierre } = req.body;
+  const user = req.user;
+
+  if (!idEnteroValido(evaluacionId) || !idEnteroValido(alumnoId) || !idEnteroValido(cursoMateriaId)) {
+    return res.status(400).json({ success: false, error: "Datos incompletos o inválidos" });
+  }
+  if (!cierreValido(numeroCierre)) {
+    return res.status(400).json({ success: false, error: "numeroCierre inválido (1 o 2)" });
+  }
+  const notaN = Number(nota);
+  if (isNaN(notaN) || notaN < 1 || notaN > 10) {
+    return res.status(400).json({ success: false, error: "Nota inválida (rango: 1 a 10)" });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    const acceso = await verificarAcceso(conn, cursoMateriaId, user, true);
+    if (!acceso.ok) {
+      return res.status(acceso.status).json({ success: false, error: acceso.error });
+    }
+
+    // Verificar que la evaluación origen pertenece a este curso
+    const evalCheck = await conn.query(
+      "SELECT id, descripcion, tipo FROM evaluaciones WHERE id = ? AND curso_materia_id = ?",
+      [evaluacionId, cursoMateriaId]
+    );
+    if (!evalCheck || evalCheck.length === 0) {
+      return res.status(404).json({ success: false, error: "Evaluación no encontrada en este curso" });
+    }
+
+    // Verificar que el alumno tiene nota en esa evaluación origen
+    const notaCheck = await conn.query(
+      "SELECT id FROM notas WHERE evaluacion_id = ? AND alumno_id = ?",
+      [evaluacionId, alumnoId]
+    );
+    if (!notaCheck || notaCheck.length === 0) {
+      return res.status(404).json({ success: false, error: "El alumno no tiene nota en esta evaluación" });
+    }
+
+    const evalOrigen = evalCheck[0];
+    const labelCierre = Number(numeroCierre) === 1 ? "Cierre Diciembre" : "Cierre Febrero";
+    const descripcion = evalOrigen.descripcion || evalOrigen.tipo || "Tema";
+
+    await conn.beginTransaction();
+
+    // Crear una nueva evaluación de cierre para este tema
+    const result = await conn.query(`
+      INSERT INTO evaluaciones
+        (curso_materia_id, tipo, descripcion, fecha, bimestre, cierre, es_acumulativo, evaluacion_origen_id)
+      VALUES (?, ?, ?, ?, NULL, ?, 0, ?)
+    `, [
+      cursoMateriaId,
+      labelCierre,
+      descripcion,
+      new Date(),
+      Number(numeroCierre),
+      evaluacionId   // referencia a la evaluación origen
+    ]);
+
+    const nuevaEvalId = Number(result.insertId);
+
+    await conn.query(
+      "INSERT INTO notas (evaluacion_id, alumno_id, nota) VALUES (?, ?, ?)",
+      [nuevaEvalId, alumnoId, notaN]
+    );
+
+    await conn.commit();
+    res.json({ success: true });
+
+  } catch (err) {
+    if (conn) { try { await conn.rollback(); } catch (_) {} }
+    console.error("Error al registrar nota de cierre:", err);
+    res.status(500).json({ success: false, error: "Error al registrar nota de cierre" });
+  } finally {
+    if (conn) conn.release();
+  }
+});
 module.exports = router;
