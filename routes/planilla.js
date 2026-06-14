@@ -3,7 +3,7 @@ const router         = express.Router();
 const pool           = require("../db/connection");
 const authMiddleware = require("../middleware/auth");
 
-// ─── Verificar acceso ─────────────────────────────────────────────────────────
+// ─── Helpers de acceso ────────────────────────────────────────────────────────
 
 async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = false) {
   const { id, rango, permiso } = user;
@@ -30,11 +30,9 @@ async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = f
   }
 
   if (rango === "preceptor") {
-    // El preceptor solo puede leer
     if (requiereEscritura) {
       return { ok: false, status: 403, error: "Sin permisos de escritura" };
     }
-    // Verificar que el curso de esta materia le pertenezca
     const pc = await conn.query(`
       SELECT pc.id
       FROM preceptor_curso pc
@@ -65,8 +63,6 @@ async function verificarAcceso(conn, cursoMateriaId, user, requiereEscritura = f
 
   return { ok: false, status: 403, error: "Rango no reconocido" };
 }
-
-// ─── Helpers de validación ────────────────────────────────────────────────────
 
 async function alumnosEnCurso(conn, alumnoIds, cursoMateriaId) {
   if (!alumnoIds || alumnoIds.length === 0) return { ok: true, faltante: null };
@@ -104,12 +100,15 @@ function bimestreValido(b) {
   return [1, 2, 3, 4].includes(Number(b));
 }
 
+function cierreValido(c) {
+  return [1, 2].includes(Number(c));
+}
+
 function idEnteroValido(val) {
   const n = parseInt(val, 10);
   return !isNaN(n) && n > 0;
 }
 
-// Verifica que evaluacionOrigenId exista y pertenezca al mismo cursoMateriaId
 async function validarEvaluacionOrigen(conn, evaluacionOrigenId, cursoMateriaId) {
   if (!evaluacionOrigenId) return { ok: true };
   const rows = await conn.query(
@@ -174,9 +173,8 @@ router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
         FROM evaluaciones e
         INNER JOIN notas n ON e.id = n.evaluacion_id
         WHERE e.curso_materia_id = ? AND n.alumno_id = ?
-        ORDER BY e.bimestre, e.id
+        ORDER BY e.bimestre, e.cierre, e.id
       `, [cursoMateriaId, user.id]);
-
     } else {
       alumnos = await conn.query(`
         SELECT DISTINCT u.id, u.nombre, u.apellido
@@ -195,7 +193,7 @@ router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
         FROM evaluaciones e
         INNER JOIN notas n ON e.id = n.evaluacion_id
         WHERE e.curso_materia_id = ?
-        ORDER BY e.bimestre, e.id
+        ORDER BY e.bimestre, e.cierre, e.id
       `, [cursoMateriaId]);
     }
 
@@ -210,95 +208,6 @@ router.get("/:cursoMateriaId/:usuarioId", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("Error al cargar planilla:", err);
     res.status(500).json({ success: false, error: "Error al cargar planilla" });
-  } finally {
-    if (conn) conn.release();
-  }
-});
-
-// ─── POST evaluacion individual ───────────────────────────────────────────────
-
-router.post("/evaluacion", authMiddleware, async (req, res) => {
-  const {
-    alumnoId, cursoMateriaId, tipo, descripcion,
-    nota, bimestre, cierre,
-    esAcumulativo, evaluacionOrigenId
-  } = req.body;
-  const user = req.user;
-
-  if (!idEnteroValido(alumnoId) || !idEnteroValido(cursoMateriaId)) {
-    return res.status(400).json({ success: false, error: "Datos incompletos o inválidos" });
-  }
-  if (!notaValida(nota)) {
-    return res.status(400).json({ success: false, error: "Nota inválida (rango: -1 a 10)" });
-  }
-  if (bimestre && !bimestreValido(bimestre)) {
-    return res.status(400).json({ success: false, error: "Bimestre inválido (valores: 1, 2, 3 o 4)" });
-  }
-  if (tipo        && String(tipo).length        > 100) {
-    return res.status(400).json({ success: false, error: "El tipo supera los 100 caracteres" });
-  }
-  if (descripcion && String(descripcion).length > 500) {
-    return res.status(400).json({ success: false, error: "La descripción supera los 500 caracteres" });
-  }
-  // Si marca como acumulativa, debe indicar de qué evaluación es origen
-  if (esAcumulativo && !idEnteroValido(evaluacionOrigenId)) {
-    return res.status(400).json({ success: false, error: "Debe indicar la evaluación de origen para una acumulativa" });
-  }
-
-  let conn;
-  try {
-    conn = await pool.getConnection();
-
-    const acceso = await verificarAcceso(conn, cursoMateriaId, user, true);
-    if (!acceso.ok) {
-      return res.status(acceso.status).json({ success: false, error: acceso.error });
-    }
-
-    await conn.beginTransaction();
-
-    if (!(await alumnoEnCurso(conn, alumnoId, cursoMateriaId))) {
-      await conn.rollback();
-      return res.status(400).json({ success: false, error: "El alumno no está inscripto en este curso" });
-    }
-
-    // Validar que la evaluación origen pertenezca a este curso
-    if (esAcumulativo) {
-      const origenCheck = await validarEvaluacionOrigen(conn, evaluacionOrigenId, cursoMateriaId);
-      if (!origenCheck.ok) {
-        await conn.rollback();
-        return res.status(400).json({ success: false, error: origenCheck.error });
-      }
-    }
-
-    const result = await conn.query(`
-      INSERT INTO evaluaciones
-        (curso_materia_id, tipo, descripcion, fecha, bimestre, cierre, es_acumulativo, evaluacion_origen_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      cursoMateriaId,
-      tipo        ? String(tipo).substring(0, 100)        : null,
-      descripcion ? String(descripcion).substring(0, 500) : null,
-      new Date(),
-      bimestre            || null,
-      cierre              || null,
-      esAcumulativo ? 1   : 0,
-      esAcumulativo ? Number(evaluacionOrigenId) : null
-    ]);
-
-    const evaluacionId = Number(result.insertId);
-
-    await conn.query(
-      "INSERT INTO notas (evaluacion_id, alumno_id, nota) VALUES (?, ?, ?)",
-      [evaluacionId, alumnoId, Number(nota)]
-    );
-
-    await conn.commit();
-    res.json({ success: true });
-
-  } catch (err) {
-    if (conn) { try { await conn.rollback(); } catch (_) {} }
-    console.error("Error al guardar evaluación:", err);
-    res.status(500).json({ success: false, error: "Error al guardar evaluación" });
   } finally {
     if (conn) conn.release();
   }
@@ -376,7 +285,7 @@ router.post("/evaluacion-global", authMiddleware, async (req, res) => {
       String(descripcion).substring(0, 500),
       new Date(),
       bimestre,
-      esAcumulativo ? 1   : 0,
+      esAcumulativo ? 1 : 0,
       esAcumulativo ? Number(evaluacionOrigenId) : null
     ]);
 
@@ -394,6 +303,182 @@ router.post("/evaluacion-global", authMiddleware, async (req, res) => {
     if (conn) { try { await conn.rollback(); } catch (_) {} }
     console.error("Error al crear evaluación global:", err);
     res.status(500).json({ success: false, error: "Error al crear evaluacion global" });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// ─── POST cierre-global ───────────────────────────────────────────────────────
+// Carga un tema del cierre (diciembre o febrero) para todos los alumnos a la vez.
+// Un cierre puede tener múltiples temas. Cada llamada agrega un tema nuevo.
+// La nota del cierre se calcula en el frontend promediando todos los temas.
+
+router.post("/cierre-global", authMiddleware, async (req, res) => {
+  const { cursoMateriaId, numeroCierre, descripcion, notas } = req.body;
+  const user = req.user;
+
+  // Validaciones
+  if (!idEnteroValido(cursoMateriaId)) {
+    return res.status(400).json({ success: false, error: "cursoMateriaId inválido" });
+  }
+  if (!cierreValido(numeroCierre)) {
+    return res.status(400).json({ success: false, error: "numeroCierre inválido (1 = Diciembre, 2 = Febrero)" });
+  }
+  if (!descripcion || String(descripcion).trim().length === 0) {
+    return res.status(400).json({ success: false, error: "La descripción no puede estar vacía" });
+  }
+  if (String(descripcion).length > 500) {
+    return res.status(400).json({ success: false, error: "La descripción supera los 500 caracteres" });
+  }
+  if (!Array.isArray(notas) || notas.length === 0) {
+    return res.status(400).json({ success: false, error: "Debe haber al menos una nota" });
+  }
+  for (const n of notas) {
+    if (!idEnteroValido(n.alumnoId)) {
+      return res.status(400).json({ success: false, error: `alumnoId inválido: ${n.alumnoId}` });
+    }
+    // En cierre las notas van de 1 a 10 (sin negativos)
+    const nota = Number(n.nota);
+    if (isNaN(nota) || nota < 1 || nota > 10) {
+      return res.status(400).json({ success: false, error: `Nota inválida para el alumno ${n.alumnoId} (rango: 1 a 10)` });
+    }
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    const acceso = await verificarAcceso(conn, cursoMateriaId, user, true);
+    if (!acceso.ok) {
+      return res.status(acceso.status).json({ success: false, error: acceso.error });
+    }
+
+    await conn.beginTransaction();
+
+    const alumnoIds = notas.map(n => n.alumnoId);
+    const check = await alumnosEnCurso(conn, alumnoIds, cursoMateriaId);
+    if (!check.ok) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, error: `El alumno ${check.faltante} no está inscripto en este curso` });
+    }
+
+    // Insertar la evaluación de cierre (sin bimestre, con cierre=numeroCierre)
+    const result = await conn.query(`
+      INSERT INTO evaluaciones
+        (curso_materia_id, tipo, descripcion, fecha, bimestre, cierre, es_acumulativo, evaluacion_origen_id)
+      VALUES (?, ?, ?, ?, NULL, ?, 0, NULL)
+    `, [
+      cursoMateriaId,
+      numeroCierre === 1 ? "Cierre Diciembre" : "Cierre Febrero",
+      String(descripcion).trim().substring(0, 500),
+      new Date(),
+      Number(numeroCierre)
+    ]);
+
+    const evaluacionId = Number(result.insertId);
+
+    await conn.batch(
+      "INSERT INTO notas (evaluacion_id, alumno_id, nota) VALUES (?, ?, ?)",
+      notas.map(n => [evaluacionId, n.alumnoId, Number(n.nota)])
+    );
+
+    await conn.commit();
+    res.json({ success: true });
+
+  } catch (err) {
+    if (conn) { try { await conn.rollback(); } catch (_) {} }
+    console.error("Error al cargar cierre global:", err);
+    res.status(500).json({ success: false, error: "Error al cargar cierre global" });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// ─── POST evaluacion (individual — solo para compatibilidad) ──────────────────
+
+router.post("/evaluacion", authMiddleware, async (req, res) => {
+  const {
+    alumnoId, cursoMateriaId, tipo, descripcion,
+    nota, bimestre, cierre,
+    esAcumulativo, evaluacionOrigenId
+  } = req.body;
+  const user = req.user;
+
+  if (!idEnteroValido(alumnoId) || !idEnteroValido(cursoMateriaId)) {
+    return res.status(400).json({ success: false, error: "Datos incompletos o inválidos" });
+  }
+  if (!notaValida(nota)) {
+    return res.status(400).json({ success: false, error: "Nota inválida (rango: -1 a 10)" });
+  }
+  if (bimestre && !bimestreValido(bimestre)) {
+    return res.status(400).json({ success: false, error: "Bimestre inválido (valores: 1, 2, 3 o 4)" });
+  }
+  if (cierre && !cierreValido(cierre)) {
+    return res.status(400).json({ success: false, error: "Cierre inválido (valores: 1 o 2)" });
+  }
+  if (tipo        && String(tipo).length        > 100) {
+    return res.status(400).json({ success: false, error: "El tipo supera los 100 caracteres" });
+  }
+  if (descripcion && String(descripcion).length > 500) {
+    return res.status(400).json({ success: false, error: "La descripción supera los 500 caracteres" });
+  }
+  if (esAcumulativo && !idEnteroValido(evaluacionOrigenId)) {
+    return res.status(400).json({ success: false, error: "Debe indicar la evaluación de origen para una acumulativa" });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    const acceso = await verificarAcceso(conn, cursoMateriaId, user, true);
+    if (!acceso.ok) {
+      return res.status(acceso.status).json({ success: false, error: acceso.error });
+    }
+
+    await conn.beginTransaction();
+
+    if (!(await alumnoEnCurso(conn, alumnoId, cursoMateriaId))) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, error: "El alumno no está inscripto en este curso" });
+    }
+
+    if (esAcumulativo) {
+      const origenCheck = await validarEvaluacionOrigen(conn, evaluacionOrigenId, cursoMateriaId);
+      if (!origenCheck.ok) {
+        await conn.rollback();
+        return res.status(400).json({ success: false, error: origenCheck.error });
+      }
+    }
+
+    const result = await conn.query(`
+      INSERT INTO evaluaciones
+        (curso_materia_id, tipo, descripcion, fecha, bimestre, cierre, es_acumulativo, evaluacion_origen_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      cursoMateriaId,
+      tipo        ? String(tipo).substring(0, 100)        : null,
+      descripcion ? String(descripcion).substring(0, 500) : null,
+      new Date(),
+      bimestre            || null,
+      cierre              || null,
+      esAcumulativo ? 1   : 0,
+      esAcumulativo ? Number(evaluacionOrigenId) : null
+    ]);
+
+    const evaluacionId = Number(result.insertId);
+
+    await conn.query(
+      "INSERT INTO notas (evaluacion_id, alumno_id, nota) VALUES (?, ?, ?)",
+      [evaluacionId, alumnoId, Number(nota)]
+    );
+
+    await conn.commit();
+    res.json({ success: true });
+
+  } catch (err) {
+    if (conn) { try { await conn.rollback(); } catch (_) {} }
+    console.error("Error al guardar evaluación:", err);
+    res.status(500).json({ success: false, error: "Error al guardar evaluación" });
   } finally {
     if (conn) conn.release();
   }

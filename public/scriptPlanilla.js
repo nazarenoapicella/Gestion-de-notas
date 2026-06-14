@@ -6,6 +6,7 @@ const tbody          = document.getElementById("tbody");
 
 let alumnosGlobales    = [];
 let evaluacionesGlobal = [];
+let cierreActivo       = 1; // 1 = Diciembre, 2 = Febrero
 
 if (!localStorage.getItem("token")) {
   location.href = "index.html";
@@ -17,150 +18,132 @@ function esParticipacion(tipo) {
   return (tipo || "").toLowerCase().includes("particip");
 }
 
+function esCierre(ev) {
+  return ev.cierre === 1 || ev.cierre === 2 ||
+         ev.cierre === "1" || ev.cierre === "2";
+}
+
 function puedeEscribir() {
   return permiso === "escritura" || permiso === "ambos";
 }
 
 // ─── Lógica de acumulativos ───────────────────────────────────────────────────
 
-/**
- * Devuelve un Set con los IDs de evaluaciones SALDADAS.
- * Una evaluación Y está saldada si existe X tal que:
- *   - X.es_acumulativo === 1
- *   - X.evaluacion_origen_id === Y.id
- *   - Nota de X >= 6
- * La acumulativa puede ser de cualquier bimestre.
- */
 function calcularSaldadas(evaluacionesAlumno) {
-  const saldadas = new Set();
+  const saldadas  = new Set();
+  const notaPorId = new Map();
+
+  for (const ev of evaluacionesAlumno) {
+    notaPorId.set(Number(ev.id), Number(ev.nota));
+  }
+
   for (const ev of evaluacionesAlumno) {
     if (Number(ev.es_acumulativo) === 1 && ev.evaluacion_origen_id != null) {
       if (Number(ev.nota) >= 6) {
-        saldadas.add(Number(ev.evaluacion_origen_id));
+        const origenId   = Number(ev.evaluacion_origen_id);
+        const notaOrigen = notaPorId.get(origenId);
+        if (notaOrigen !== undefined && notaOrigen < 6) {
+          saldadas.add(origenId);
+        }
       }
     }
   }
   return saldadas;
 }
 
-/**
- * Calcula el promedio VISUAL de un bimestre (lo que se muestra en la celda).
- *
- * - Si el bimestre tiene evaluaciones saldadas → DESAPROBADO (registro histórico).
- * - Si quedan desaprobadas sin saldar → DESAPROBADO.
- * - Si no → promedio de las normales + ajuste de participaciones.
- */
+// ─── Cálculo de bimestre visual ───────────────────────────────────────────────
+
 function calcularBimestre(evaluacionesAlumno, num) {
-  const evaluaciones = evaluacionesAlumno.filter(e => Number(e.bimestre) === Number(num));
+  // Solo evaluaciones regulares (no cierres) del bimestre indicado
+  const evaluaciones = evaluacionesAlumno.filter(
+    e => Number(e.bimestre) === Number(num) && !esCierre(e)
+  );
   if (evaluaciones.length === 0) return "-";
 
   const saldadas        = calcularSaldadas(evaluacionesAlumno);
   const participaciones = evaluaciones.filter(e =>  esParticipacion(e.tipo));
   const normales        = evaluaciones.filter(e => !esParticipacion(e.tipo));
 
-  // Detectar saldadas que están en este bimestre
-  const saldadasEnEsteBimestre = normales.filter(e => saldadas.has(Number(e.id)));
-
-  // Para cada saldada en este bimestre, buscar si su acumulativa también
-  // está en este mismo bimestre. Si la acumulativa es de OTRO bimestre,
-  // este bimestre queda DESAPROBADO como registro histórico.
-  // Si la acumulativa es del MISMO bimestre, se excluye la saldada y se promedia.
-  for (const saldada of saldadasEnEsteBimestre) {
+  // Saldadas en este bimestre por acumulativa de OTRO bimestre → DESAPROBADO
+  for (const saldada of normales.filter(e => saldadas.has(Number(e.id)))) {
     const acumulativa = evaluacionesAlumno.find(
       e =>
         Number(e.es_acumulativo) === 1 &&
         Number(e.evaluacion_origen_id) === Number(saldada.id) &&
         Number(e.nota) >= 6
     );
-    // Si la acumulativa que salda a esta evaluación es de OTRO bimestre
-    // → este bimestre queda DESAPROBADO (ya había cerrado con esa desaprobada)
     if (acumulativa && Number(acumulativa.bimestre) !== Number(num)) {
       return "DESAPROBADO";
     }
-    // Si la acumulativa es del MISMO bimestre → se excluye del promedio (continúa)
   }
 
-  // Calcular con las normales que no están saldadas
   const paraPromedio = normales.filter(e => !saldadas.has(Number(e.id)));
 
-  // Si quedan desaprobadas sin saldar → DESAPROBADO
-  if (paraPromedio.some(e => Number(e.nota) < 6)) {
-    return "DESAPROBADO";
-  }
+  if (paraPromedio.some(e => Number(e.nota) < 6)) return "DESAPROBADO";
 
   if (paraPromedio.length === 0 && participaciones.length === 0) return "-";
 
   const promedioBase = paraPromedio.length > 0
-    ? paraPromedio.reduce((sum, e) => sum + Number(e.nota), 0) / paraPromedio.length
+    ? paraPromedio.reduce((s, e) => s + Number(e.nota), 0) / paraPromedio.length
     : 0;
 
-  const ajuste = participaciones.reduce((sum, e) => sum + Number(e.nota), 0);
+  const ajuste = participaciones.reduce((s, e) => s + Number(e.nota), 0);
 
   return (promedioBase + ajuste).toFixed(2);
 }
 
-/**
- * Calcula el promedio EFECTIVO de un bimestre para usar en el cuatrimestre.
- *
- * A diferencia de calcularBimestre (que es visual), esta función:
- * - EXCLUYE las evaluaciones saldadas del promedio.
- * - Si después de excluir saldadas quedan desaprobadas sin saldar → "DESAPROBADO".
- * - Si no quedan evaluaciones normales (todas saldadas o vacío) pero hay
- *   evaluaciones acumulativas aprobadas en OTROS bimestres que apuntan a este
- *   → se promedia solo lo que queda (puede ser solo participaciones).
- *
- * Esta es la nota que realmente "pesa" en el cuatrimestre.
- */
+// ─── Cálculo de bimestre efectivo (para cuatrimestre) ────────────────────────
+
 function calcularBimestreEfectivo(evaluacionesAlumno, num) {
-  const evaluaciones = evaluacionesAlumno.filter(e => Number(e.bimestre) === Number(num));
+  const evaluaciones = evaluacionesAlumno.filter(
+    e => Number(e.bimestre) === Number(num) && !esCierre(e)
+  );
   if (evaluaciones.length === 0) return "-";
 
   const saldadas        = calcularSaldadas(evaluacionesAlumno);
   const participaciones = evaluaciones.filter(e =>  esParticipacion(e.tipo));
   const normales        = evaluaciones.filter(e => !esParticipacion(e.tipo));
+  const paraPromedio    = normales.filter(e => !saldadas.has(Number(e.id)));
 
-  // Excluir las saldadas del cálculo efectivo
-  const paraPromedio = normales.filter(e => !saldadas.has(Number(e.id)));
-
-  // Si quedan desaprobadas sin saldar → el bimestre sigue siendo DESAPROBADO
-  if (paraPromedio.some(e => Number(e.nota) < 6)) {
-    return "DESAPROBADO";
-  }
-
-  // Si no quedan normales (todas fueron saldadas) y no hay participaciones → "-"
+  if (paraPromedio.some(e => Number(e.nota) < 6)) return "DESAPROBADO";
   if (paraPromedio.length === 0 && participaciones.length === 0) return "-";
 
   const promedioBase = paraPromedio.length > 0
-    ? paraPromedio.reduce((sum, e) => sum + Number(e.nota), 0) / paraPromedio.length
+    ? paraPromedio.reduce((s, e) => s + Number(e.nota), 0) / paraPromedio.length
     : 0;
 
-  const ajuste = participaciones.reduce((sum, e) => sum + Number(e.nota), 0);
-
+  const ajuste = participaciones.reduce((s, e) => s + Number(e.nota), 0);
   return (promedioBase + ajuste).toFixed(2);
 }
 
-/**
- * Calcula el cuatrimestre usando los valores EFECTIVOS de cada bimestre.
- *
- * - Si algún bimestre efectivo es DESAPROBADO → cuatrimestre DESAPROBADO.
- * - Si ambos son "-" → "-".
- * - Si no → promedio de los que tienen valor numérico.
- */
 function calcularCuatrimestre(evaluacionesAlumno, b1, b2) {
   const ef1 = calcularBimestreEfectivo(evaluacionesAlumno, b1);
   const ef2 = calcularBimestreEfectivo(evaluacionesAlumno, b2);
-
   if (ef1 === "DESAPROBADO" || ef2 === "DESAPROBADO") return "DESAPROBADO";
-
   const nums = [ef1, ef2].filter(n => n !== "-").map(Number);
   if (nums.length === 0) return "-";
   return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2);
 }
 
+// ─── Cálculo de nota de cierre ────────────────────────────────────────────────
+
 /**
- * Necesita cierres si el cuatrimestre es DESAPROBADO
- * o el promedio anual < 6.
+ * Calcula la nota de un cierre (1 = Diciembre, 2 = Febrero) para un alumno.
+ * Regla:
+ *   - Promedio de todos los temas del cierre.
+ *   - Si promedio >= 6 → aprueba (retorna el promedio).
+ *   - Si promedio < 6  → desaprueba (retorna el promedio igual, para mostrarlo).
+ *   - Si no tiene temas → retorna null.
  */
+function calcularNotaCierre(evaluacionesAlumno, numeroCierre) {
+  const temas = evaluacionesAlumno.filter(
+    e => Number(e.cierre) === Number(numeroCierre)
+  );
+  if (temas.length === 0) return null;
+  const prom = temas.reduce((s, e) => s + Number(e.nota), 0) / temas.length;
+  return parseFloat(prom.toFixed(2));
+}
+
 function necesitaCierres(cuat1, cuat2) {
   if (cuat1 === "DESAPROBADO" || cuat2 === "DESAPROBADO") return true;
   const nums = [cuat1, cuat2].filter(n => n !== "-").map(Number);
@@ -168,13 +151,12 @@ function necesitaCierres(cuat1, cuat2) {
   return nums.reduce((a, b) => a + b, 0) / nums.length < 6;
 }
 
-// ─── Render resumen de bimestre (pie de celda) ────────────────────────────────
+// ─── Render resumen bimestre ──────────────────────────────────────────────────
 
 function renderResumenBimestre(promBimestre) {
   const esDesap = promBimestre === "DESAPROBADO";
   const esVacio = promBimestre === "-";
   const clase   = esDesap ? "desaprobado" : (!esVacio ? "aprobado" : "");
-
   return `
     <div class="bim-resumen">
       <div class="bim-resumen-label">Promedio bimestre</div>
@@ -183,12 +165,28 @@ function renderResumenBimestre(promBimestre) {
   `;
 }
 
-// ─── Render evaluaciones dentro de celda de bimestre ─────────────────────────
+// ─── Render resumen cierre ────────────────────────────────────────────────────
+
+function renderResumenCierre(notaCierre) {
+  if (notaCierre === null) return "";
+  const aprueba = notaCierre >= 6;
+  const clase   = aprueba ? "aprobado" : "desaprobado";
+  return `
+    <div class="cierre-resumen">
+      <div class="cierre-resumen-label">Promedio cierre</div>
+      <div class="cierre-resumen-valor ${clase}">${notaCierre.toFixed(2)}</div>
+    </div>
+  `;
+}
+
+// ─── Render de bimestre en tabla ──────────────────────────────────────────────
 
 function renderBimestre(evaluacionesAlumno, alumno, num) {
-  const evaluaciones = evaluacionesAlumno.filter(e => Number(e.bimestre) === Number(num));
-  const saldadas     = calcularSaldadas(evaluacionesAlumno);
-  const promBim      = calcularBimestre(evaluacionesAlumno, num);
+  const evaluaciones = evaluacionesAlumno.filter(
+    e => Number(e.bimestre) === Number(num) && !esCierre(e)
+  );
+  const saldadas = calcularSaldadas(evaluacionesAlumno);
+  const promBim  = calcularBimestre(evaluacionesAlumno, num);
 
   let html = "";
 
@@ -208,9 +206,7 @@ function renderBimestre(evaluacionesAlumno, alumno, num) {
       claseNota += " eval-nota-roja";
     }
 
-    const badgeAcum = esAcum
-      ? `<span class="eval-acum-badge">Acumulativa</span><br>`
-      : "";
+    const badgeAcum = esAcum ? `<span class="eval-acum-badge">Acumulativa</span><br>` : "";
 
     html += `
       <div class="${claseEval}">
@@ -220,11 +216,9 @@ function renderBimestre(evaluacionesAlumno, alumno, num) {
         </div>
         ${badgeAcum}
         <div class="eval-desc">${escHTML(ev.descripcion)}</div>
-        ${
-          puedeEscribir()
-            ? `<button onclick="eliminarEvaluacion(${Number(ev.id)}, ${Number(alumno.id)})">Eliminar</button>`
-            : ""
-        }
+        ${puedeEscribir()
+          ? `<button onclick="eliminarEvaluacion(${Number(ev.id)}, ${Number(alumno.id)})">Eliminar</button>`
+          : ""}
       </div>
     `;
   }
@@ -233,17 +227,45 @@ function renderBimestre(evaluacionesAlumno, alumno, num) {
   return html;
 }
 
+// ─── Render de celda de cierre ────────────────────────────────────────────────
+
+function renderCeldaCierre(evaluacionesAlumno, alumno, numeroCierre, habilitado) {
+  if (!habilitado) return `<td class="prom" style="color:#aaa;">-</td>`;
+
+  const temas      = evaluacionesAlumno.filter(e => Number(e.cierre) === numeroCierre);
+  const notaCierre = calcularNotaCierre(evaluacionesAlumno, numeroCierre);
+
+  let html = "";
+
+  for (const ev of temas) {
+    const nota      = Number(ev.nota);
+    const claseNota = nota >= 6 ? "eval-nota" : "eval-nota eval-nota-roja";
+    html += `
+      <div class="eval">
+        <div class="eval-top">
+          <span class="eval-tipo">${escHTML(ev.descripcion || ev.tipo || "Tema")}</span>
+          <span class="${claseNota}">${escHTML(ev.nota)}</span>
+        </div>
+        <span class="eval-cierre-badge">${numeroCierre === 1 ? "Diciembre" : "Febrero"}</span>
+        ${puedeEscribir()
+          ? `<button onclick="eliminarEvaluacion(${Number(ev.id)}, ${Number(alumno.id)})">Eliminar</button>`
+          : ""}
+      </div>
+    `;
+  }
+
+  html += renderResumenCierre(notaCierre);
+
+  return `<td class="prom">${html}</td>`;
+}
+
 // ─── Carga principal ──────────────────────────────────────────────────────────
 
 async function cargar() {
   try {
     const res = await apiFetch(`/planilla/${cursoMateriaId}/${localStorage.getItem("id")}`);
     if (!res) return;
-
-    if (!res.ok) {
-      alert("Error al cargar la planilla.");
-      return;
-    }
+    if (!res.ok) { alert("Error al cargar la planilla."); return; }
 
     const data = await res.json();
 
@@ -256,45 +278,51 @@ async function cargar() {
     evaluacionesGlobal = data.notas;
 
     if (puedeEscribir()) {
-      document.getElementById("globalForm").style.display = "block";
+      document.getElementById("globalForm").style.display  = "block";
+      document.getElementById("cierreForm").style.display  = "block";
       renderGlobales();
+      renderCierreAlumnos();
     } else {
-      document.getElementById("globalForm").style.display = "none";
+      document.getElementById("globalForm").style.display  = "none";
+      document.getElementById("cierreForm").style.display  = "none";
     }
 
     for (const alumno of data.alumnos) {
       const evAlumno = data.notas.filter(n => n.alumno_id == alumno.id);
 
-      // Visual (para mostrar en celda)
       const prom1 = calcularBimestre(evAlumno, 1);
       const prom2 = calcularBimestre(evAlumno, 2);
       const prom3 = calcularBimestre(evAlumno, 3);
       const prom4 = calcularBimestre(evAlumno, 4);
 
-      // Efectivo (para calcular cuatrimestre)
       const cuat1 = calcularCuatrimestre(evAlumno, 1, 2);
       const cuat2 = calcularCuatrimestre(evAlumno, 3, 4);
 
       const habilitarCierres = necesitaCierres(cuat1, cuat2);
 
-      const cierre1 = evAlumno.find(e => Number(e.cierre) === 1);
-      const cierre2 = evAlumno.find(e => Number(e.cierre) === 2);
+      const notaDic = calcularNotaCierre(evAlumno, 1);
+      const notaFeb = calcularNotaCierre(evAlumno, 2);
 
       // ── Nota final ──
       let final;
       let claseNotaFinal = "prom";
 
-      if (cierre2) {
-        final = Number(cierre2.nota) >= 6 ? String(cierre2.nota) : "PREVIA";
-      } else if (cierre1) {
-        final = Number(cierre1.nota) >= 6 ? String(cierre1.nota) : "PREVIA";
+      if (notaFeb !== null) {
+        final = notaFeb >= 6 ? notaFeb.toFixed(2) : "PREVIA";
+      } else if (notaDic !== null) {
+        // Tiene temas de diciembre pero no de febrero
+        if (notaDic >= 6) {
+          final = notaDic.toFixed(2); // aprobó diciembre
+        } else {
+          final = "-"; // desaprobó diciembre, espera febrero
+        }
       } else if (!habilitarCierres) {
         const nums = [cuat1, cuat2].filter(n => n !== "-" && n !== "DESAPROBADO").map(Number);
         final = nums.length > 0
           ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2)
           : "-";
       } else {
-        final = "-";
+        final = "-"; // necesita cierres pero no los tiene aún
       }
 
       if (final === "PREVIA") claseNotaFinal += " nota-previa";
@@ -302,29 +330,9 @@ async function cargar() {
       const estiloCuat1 = cuat1 === "DESAPROBADO" ? ' style="color:#c00;font-weight:bold;"' : "";
       const estiloCuat2 = cuat2 === "DESAPROBADO" ? ' style="color:#c00;font-weight:bold;"' : "";
 
-      // ── Celdas de cierre ──
-      let celdaCierre1, celdaCierre2;
-      if (habilitarCierres) {
-        const notaC1 = cierre1 ? escHTML(cierre1.nota) : "-";
-        const notaC2 = cierre2 ? escHTML(cierre2.nota) : "-";
-        celdaCierre1 = `
-          <td class="prom">
-            ${notaC1}
-            ${puedeEscribir() && !cierre1
-              ? `<br><button class="add-btn" onclick="agregarCierre(${Number(alumno.id)}, 1)">Cargar dic.</button>`
-              : ""}
-          </td>`;
-        celdaCierre2 = `
-          <td class="prom">
-            ${notaC2}
-            ${puedeEscribir() && !cierre2
-              ? `<br><button class="add-btn" onclick="agregarCierre(${Number(alumno.id)}, 2)">Cargar feb.</button>`
-              : ""}
-          </td>`;
-      } else {
-        celdaCierre1 = `<td class="prom" style="color:#aaa;">-</td>`;
-        celdaCierre2 = `<td class="prom" style="color:#aaa;">-</td>`;
-      }
+      // Cierre habilitado solo si lo necesita
+      // Febrero habilitado solo si ya tiene temas en diciembre y desaprobó
+      const habFeb = habilitarCierres && notaDic !== null && notaDic < 6;
 
       const row = document.createElement("tr");
       row.innerHTML = `
@@ -335,8 +343,8 @@ async function cargar() {
         <td>${renderBimestre(evAlumno, alumno, 3)}</td>
         <td>${renderBimestre(evAlumno, alumno, 4)}</td>
         <td class="prom"${estiloCuat2}>${escHTML(cuat2)}</td>
-        ${celdaCierre1}
-        ${celdaCierre2}
+        ${renderCeldaCierre(evAlumno, alumno, 1, habilitarCierres)}
+        ${renderCeldaCierre(evAlumno, alumno, 2, habFeb)}
         <td class="${claseNotaFinal}">${escHTML(final)}</td>
       `;
 
@@ -346,49 +354,6 @@ async function cargar() {
   } catch (err) {
     console.error("Error al cargar planilla:", err);
     alert("Error de conexión al cargar la planilla.");
-  }
-}
-
-// ─── Agregar cierre administrativo ───────────────────────────────────────────
-
-async function agregarCierre(alumnoId, numeroCierre) {
-  if (!puedeEscribir()) return;
-
-  const label   = numeroCierre === 1 ? "1er cierre (Diciembre)" : "2do cierre (Febrero)";
-  const notaStr = prompt(`Nota para ${label} (1 a 10):`);
-  if (notaStr === null || notaStr.trim() === "") return;
-
-  const nota = Number(notaStr);
-  if (isNaN(nota) || nota < 1 || nota > 10) {
-    alert("Nota inválida. Debe ser un número entre 1 y 10.");
-    return;
-  }
-
-  try {
-    const res = await apiFetch("/planilla/evaluacion", {
-      method: "POST",
-      body: JSON.stringify({
-        alumnoId,
-        cursoMateriaId,
-        tipo:               numeroCierre === 1 ? "Cierre Diciembre" : "Cierre Febrero",
-        descripcion:        numeroCierre === 1 ? "1er cierre administrativo" : "2do cierre administrativo",
-        nota,
-        bimestre:           null,
-        cierre:             numeroCierre,
-        esAcumulativo:      false,
-        evaluacionOrigenId: null
-      })
-    });
-    if (!res) return;
-    if (!res.ok) {
-      const err = await res.json();
-      alert(err.error || "Error al guardar.");
-      return;
-    }
-    cargar();
-  } catch (err) {
-    console.error("Error al guardar cierre:", err);
-    alert("Error de conexión al guardar.");
   }
 }
 
@@ -402,11 +367,7 @@ async function eliminarEvaluacion(evaluacionId, alumnoId) {
       body: JSON.stringify({ alumnoId, cursoMateriaId })
     });
     if (!res) return;
-    if (!res.ok) {
-      const err = await res.json();
-      alert(err.error || "Error al eliminar.");
-      return;
-    }
+    if (!res.ok) { const err = await res.json(); alert(err.error || "Error al eliminar."); return; }
     cargar();
   } catch (err) {
     console.error("Error al eliminar evaluación:", err);
@@ -414,64 +375,42 @@ async function eliminarEvaluacion(evaluacionId, alumnoId) {
   }
 }
 
-// ─── Render form carga global ─────────────────────────────────────────────────
+// ─── Render formulario evaluaciones regulares ─────────────────────────────────
 
 function renderGlobales() {
   const contenedor = document.getElementById("globalAlumnos");
   contenedor.innerHTML = "";
-
   for (const alumno of alumnosGlobales) {
-    const div         = document.createElement("div");
+    const div   = document.createElement("div");
     div.classList.add("alumno-global");
-
-    const span        = document.createElement("span");
-    span.textContent  = `${alumno.apellido}, ${alumno.nombre}`;
-
-    const input       = document.createElement("input");
-    input.type        = "number";
-    input.min         = "1";
-    input.max         = "10";
-    input.step        = "0.01";
-    input.placeholder = "Nota";
-    input.id          = `nota-${alumno.id}`;
-
+    const span  = document.createElement("span");
+    span.textContent = `${alumno.apellido}, ${alumno.nombre}`;
+    const input = document.createElement("input");
+    input.type = "number"; input.min = "1"; input.max = "10";
+    input.step = "0.01"; input.placeholder = "Nota";
+    input.id = `nota-${alumno.id}`;
     div.appendChild(span);
     div.appendChild(input);
     contenedor.appendChild(div);
   }
-
   actualizarInputsNota();
 }
 
 function actualizarInputsNota() {
   const tipo     = document.getElementById("globalTipo").value;
   const esPartic = esParticipacion(tipo);
-
   for (const alumno of alumnosGlobales) {
     const input = document.getElementById(`nota-${alumno.id}`);
     if (!input) continue;
-
     if (esPartic) {
-      input.min         = "0";
-      input.max         = "1";
-      input.step        = "1";
-      input.placeholder = "0 o 1";
-      if (input.value !== "" && input.value !== "0" && input.value !== "1") {
-        input.value = "";
-      }
+      input.min = "0"; input.max = "1"; input.step = "1"; input.placeholder = "0 o 1";
+      if (input.value !== "" && input.value !== "0" && input.value !== "1") input.value = "";
     } else {
-      input.min         = "1";
-      input.max         = "10";
-      input.step        = "0.01";
-      input.placeholder = "Nota";
-      if (input.value === "0" || input.value === "1") {
-        input.value = "";
-      }
+      input.min = "1"; input.max = "10"; input.step = "0.01"; input.placeholder = "Nota";
+      if (input.value === "0" || input.value === "1") input.value = "";
     }
   }
 }
-
-// ─── Guardar evaluación global ────────────────────────────────────────────────
 
 async function guardarGlobal() {
   if (!puedeEscribir()) return;
@@ -480,20 +419,16 @@ async function guardarGlobal() {
   const tipo        = document.getElementById("globalTipo").value;
   const bimestre    = document.getElementById("globalBimestre").value;
 
-  if (!descripcion) {
-    alert("Completá la descripción.");
-    return;
-  }
+  if (!descripcion) { alert("Completá la descripción."); return; }
 
   const esAcumulativo    = document.getElementById("globalEsAcumulativo").checked;
   let evaluacionOrigenId = null;
 
   if (esAcumulativo) {
-    const sel          = document.getElementById("globalEvaluacionOrigen");
+    const sel = document.getElementById("globalEvaluacionOrigen");
     evaluacionOrigenId = sel ? parseInt(sel.value, 10) : null;
     if (!evaluacionOrigenId || isNaN(evaluacionOrigenId)) {
-      alert("Seleccioná la evaluación de origen para marcarla como acumulativa.");
-      return;
+      alert("Seleccioná la evaluación de origen para marcarla como acumulativa."); return;
     }
   }
 
@@ -501,42 +436,27 @@ async function guardarGlobal() {
   for (const alumno of alumnosGlobales) {
     const notaInput = document.getElementById(`nota-${alumno.id}`);
     if (notaInput.value === "") continue;
-
     let valor = Number(notaInput.value);
-
     if (esParticipacion(tipo)) {
-      if (valor !== 0 && valor !== 1) {
-        alert("En valoración solo se permite 0 (no aplica) o 1 (aplica).");
-        return;
-      }
+      if (valor !== 0 && valor !== 1) { alert("En valoración solo se permite 0 o 1."); return; }
       if (valor === 0) continue;
       if      (tipo.includes("+1"))   valor =  1;
       else if (tipo.includes("+0.5")) valor =  0.5;
       else if (tipo.includes("-0.5")) valor = -0.5;
     }
-
     notas.push({ alumnoId: alumno.id, nota: valor });
   }
 
-  if (notas.length === 0) {
-    alert("Debes cargar al menos una nota.");
-    return;
-  }
+  if (notas.length === 0) { alert("Debes cargar al menos una nota."); return; }
 
   try {
     const res = await apiFetch("/planilla/evaluacion-global", {
       method: "POST",
-      body: JSON.stringify({
-        cursoMateriaId, descripcion, tipo, bimestre, notas,
-        esAcumulativo, evaluacionOrigenId
-      })
+      body: JSON.stringify({ cursoMateriaId, descripcion, tipo, bimestre, notas, esAcumulativo, evaluacionOrigenId })
     });
     if (!res) return;
-    if (!res.ok) {
-      const err = await res.json();
-      alert(err.error || "Error al guardar.");
-      return;
-    }
+    if (!res.ok) { const err = await res.json(); alert(err.error || "Error al guardar."); return; }
+    document.getElementById("globalDescripcion").value = "";
     cargar();
   } catch (err) {
     console.error("Error al guardar evaluación global:", err);
@@ -544,21 +464,15 @@ async function guardarGlobal() {
   }
 }
 
-// ─── Actualizar select de evaluación origen (carga global) ───────────────────
-
 function actualizarSelectOrigen() {
   const contenedor = document.getElementById("origenContenedor");
   const checkbox   = document.getElementById("globalEsAcumulativo");
+  if (!checkbox.checked) { contenedor.style.display = "none"; return; }
 
-  if (!checkbox.checked) {
-    contenedor.style.display = "none";
-    return;
-  }
-
-  const vistas       = new Set();
+  const vistas = new Set();
   const evalsPrevias = [];
   for (const ev of evaluacionesGlobal) {
-    if (!vistas.has(Number(ev.id))) {
+    if (!vistas.has(Number(ev.id)) && !esCierre(ev)) {
       vistas.add(Number(ev.id));
       evalsPrevias.push(ev);
     }
@@ -566,22 +480,126 @@ function actualizarSelectOrigen() {
 
   if (evalsPrevias.length === 0) {
     contenedor.style.display = "none";
-    checkbox.checked          = false;
+    checkbox.checked = false;
     alert("No hay evaluaciones previas en este curso para usar como origen.");
     return;
   }
 
-  const sel     = document.getElementById("globalEvaluacionOrigen");
+  const sel = document.getElementById("globalEvaluacionOrigen");
   sel.innerHTML = "";
-
   for (const ev of evalsPrevias) {
-    const opt       = document.createElement("option");
-    opt.value       = ev.id;
+    const opt = document.createElement("option");
+    opt.value = ev.id;
     opt.textContent = `[B${ev.bimestre ?? "-"}] ${ev.descripcion || ev.tipo || "sin descripción"}`;
     sel.appendChild(opt);
   }
-
   contenedor.style.display = "block";
+}
+
+// ─── Formulario de cierres ────────────────────────────────────────────────────
+
+function seleccionarCierre(numero) {
+  cierreActivo = numero;
+
+  document.getElementById("tabDic")
+    .classList.toggle("activo", numero === 1);
+
+  document.getElementById("tabFeb")
+    .classList.toggle("activo", numero === 2);
+
+  renderCierreAlumnos();
+}
+
+function renderCierreAlumnos() {
+  const contenedor = document.getElementById("cierreAlumnos");
+  contenedor.innerHTML = "";
+
+  for (const alumno of alumnosGlobales) {
+
+    const evAlumno = evaluacionesGlobal.filter(
+      n => Number(n.alumno_id) === Number(alumno.id)
+    );
+
+    const cuat1 = calcularCuatrimestre(evAlumno, 1, 2);
+    const cuat2 = calcularCuatrimestre(evAlumno, 3, 4);
+
+    const necesita = necesitaCierres(cuat1, cuat2);
+
+    const notaDic = calcularNotaCierre(evAlumno, 1);
+
+    // Diciembre: solamente alumnos que necesitan cierre
+    let mostrar =
+      cierreActivo === 1
+        ? necesita
+        : necesita && notaDic !== null && notaDic < 6;
+
+    if (!mostrar) continue;
+
+    const div = document.createElement("div");
+    div.classList.add("alumno-global");
+
+    const span = document.createElement("span");
+    span.textContent = `${alumno.apellido}, ${alumno.nombre}`;
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "1";
+    input.max = "10";
+    input.step = "0.01";
+    input.placeholder = "Nota";
+    input.id = `cierre-nota-${alumno.id}`;
+
+    div.appendChild(span);
+    div.appendChild(input);
+
+    contenedor.appendChild(div);
+  }
+}
+
+async function guardarCierre() {
+  if (!puedeEscribir()) return;
+
+  const descripcion = document.getElementById("cierreDescripcion").value.trim();
+  if (!descripcion) { alert("Completá el tema del cierre."); return; }
+
+  const notas = [];
+  for (const alumno of alumnosGlobales) {
+    const input = document.getElementById(`cierre-nota-${alumno.id}`);
+    if (!input || input.value === "") continue;
+    const valor = Number(input.value);
+    if (isNaN(valor) || valor < 1 || valor > 10) {
+      alert(`Nota inválida para ${alumno.apellido}, ${alumno.nombre}. Debe ser entre 1 y 10.`);
+      return;
+    }
+    notas.push({ alumnoId: alumno.id, nota: valor });
+  }
+
+  if (notas.length === 0) { alert("Ingresá al menos una nota."); return; }
+
+  try {
+    const res = await apiFetch("/planilla/cierre-global", {
+      method: "POST",
+      body: JSON.stringify({
+        cursoMateriaId,
+        numeroCierre: cierreActivo,
+        descripcion,
+        notas
+      })
+    });
+    if (!res) return;
+    if (!res.ok) { const err = await res.json(); alert(err.error || "Error al guardar."); return; }
+
+    // Limpiar campos del formulario de cierre
+    document.getElementById("cierreDescripcion").value = "";
+    for (const alumno of alumnosGlobales) {
+      const input = document.getElementById(`cierre-nota-${alumno.id}`);
+      if (input) input.value = "";
+    }
+    cargar();
+  } catch (err) {
+    console.error("Error al guardar cierre:", err);
+    alert("Error de conexión al guardar.");
+  }
 }
 
 // ─── Event listeners ──────────────────────────────────────────────────────────

@@ -7,267 +7,113 @@
   <title>Planilla</title>
 
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: "Segoe UI", sans-serif;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
 
     body { background: #ececec; }
 
     .header {
-      background: #111;
-      color: white;
-      padding: 22px 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      background: #111; color: white; padding: 22px 30px;
+      display: flex; justify-content: space-between; align-items: center;
       box-shadow: 0 2px 10px rgba(0,0,0,.15);
     }
-
     .left-header h1 { font-size: 28px; }
     .left-header p  { color: #ccc; font-size: 13px; }
-    .left-header span {
-      display: block;
-      margin-top: 8px;
-      font-size: 14px;
-      color: #d5d5d5;
-    }
+    .left-header span { display: block; margin-top: 8px; font-size: 14px; color: #d5d5d5; }
 
     .volver-btn {
-      border: none;
-      background: white;
-      color: #111;
-      padding: 10px 18px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: bold;
+      border: none; background: white; color: #111;
+      padding: 10px 18px; border-radius: 10px; cursor: pointer; font-weight: bold;
     }
 
     .container { padding: 25px; }
 
     .table-container {
-      background: white;
-      border-radius: 20px;
-      padding: 20px;
-      overflow: auto;
-      box-shadow: 0 5px 18px rgba(0,0,0,.12);
+      background: white; border-radius: 20px; padding: 20px;
+      overflow: auto; box-shadow: 0 5px 18px rgba(0,0,0,.12);
     }
 
-    table {
-      width: 100%;
-      min-width: 1800px;
-      border-collapse: collapse;
-    }
-
+    table { width: 100%; min-width: 1800px; border-collapse: collapse; }
     thead { background: #111; color: white; }
-
-    th, td {
-      border-bottom: 1px solid #ddd;
-      padding: 15px;
-      text-align: center;
-      vertical-align: top;
-    }
+    th, td { border-bottom: 1px solid #ddd; padding: 15px; text-align: center; vertical-align: top; }
 
     /* ── Evaluación ── */
-    .eval {
-      background: #f4f4f4;
-      border-radius: 10px;
-      padding: 10px;
-      margin-bottom: 8px;
-    }
-
-    .eval-saldada {
-      opacity: 0.45;
-      text-decoration: line-through;
-    }
-
-    .eval-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-
-    .eval-tipo {
-      font-weight: 700;
-      color: #111;
-      font-size: 13px;
-      text-align: left;
-    }
-
-    .eval-nota {
-      background: #111;
-      color: white;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: bold;
-      white-space: nowrap;
-    }
-
+    .eval { background: #f4f4f4; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+    .eval-saldada { opacity: 0.45; text-decoration: line-through; }
+    .eval-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .eval-tipo { font-weight: 700; color: #111; font-size: 13px; text-align: left; }
+    .eval-nota { background: #111; color: white; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: bold; white-space: nowrap; }
     .eval-nota-roja { background: #c00 !important; }
     .eval-nota-gris { background: #999 !important; }
-
-    .eval-desc {
-      font-size: 12px;
-      color: #555;
-      line-height: 1.4;
-      margin-bottom: 6px;
-      text-align: left;
-    }
-
-    .eval-acum-badge {
-      display: inline-block;
-      background: #1a73e8;
-      color: white;
-      font-size: 10px;
-      padding: 2px 7px;
-      border-radius: 999px;
-      margin-bottom: 5px;
-    }
-
-    /* Botón eliminar: único botón dentro de cada evaluación */
-    .eval button {
-      margin-top: 6px;
-      background: #c00;
-      color: white;
-      border: none;
-      padding: 5px 10px;
-      border-radius: 7px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-    }
-
+    .eval-desc { font-size: 12px; color: #555; line-height: 1.4; margin-bottom: 6px; text-align: left; }
+    .eval-acum-badge { display: inline-block; background: #1a73e8; color: white; font-size: 10px; padding: 2px 7px; border-radius: 999px; margin-bottom: 5px; }
+    .eval-cierre-badge { display: inline-block; background: #7b1fa2; color: white; font-size: 10px; padding: 2px 7px; border-radius: 999px; margin-bottom: 5px; }
+    .eval button { margin-top: 6px; background: #c00; color: white; border: none; padding: 5px 10px; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 600; }
     .eval button:hover { background: #a00; }
 
-    /* Botón de cierres (sigue existiendo) */
-    .add-btn {
-      background: #333;
-      color: white;
-      border: none;
-      padding: 6px 11px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 12px;
-      margin-top: 4px;
-    }
-
+    .add-btn { background: #333; color: white; border: none; padding: 6px 11px; border-radius: 8px; cursor: pointer; font-size: 12px; margin-top: 4px; }
     .add-btn:hover { background: #555; }
 
     /* ── Resumen bimestre ── */
-    .bim-resumen {
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 2px solid #ddd;
-      background: #f9f9f9;
-      border-radius: 0 0 8px 8px;
-    }
-
-    .bim-resumen-label {
-      font-size: 10px;
-      color: #888;
-      text-transform: uppercase;
-      letter-spacing: .5px;
-      margin-bottom: 3px;
-    }
-
-    .bim-resumen-valor {
-      font-size: 17px;
-      font-weight: 800;
-      color: #111;
-    }
-
+    .bim-resumen { margin-top: 10px; padding-top: 8px; border-top: 2px solid #ddd; background: #f9f9f9; border-radius: 0 0 8px 8px; }
+    .bim-resumen-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+    .bim-resumen-valor { font-size: 17px; font-weight: 800; color: #111; }
     .bim-resumen-valor.desaprobado { color: #c00; }
     .bim-resumen-valor.aprobado    { color: #1a7a1a; }
 
-    /* ── Columnas cuatrimestre / final ── */
-    .prom {
-      font-weight: bold;
-      color: #111;
-      font-size: 18px;
-    }
+    /* ── Resumen cierre ── */
+    .cierre-resumen { margin-top: 8px; padding-top: 6px; border-top: 2px solid #e1bee7; background: #f9f0ff; border-radius: 0 0 8px 8px; }
+    .cierre-resumen-label { font-size: 10px; color: #7b1fa2; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+    .cierre-resumen-valor { font-size: 15px; font-weight: 800; color: #7b1fa2; }
+    .cierre-resumen-valor.aprobado    { color: #1a7a1a; }
+    .cierre-resumen-valor.desaprobado { color: #c00; }
 
-    .nota-previa {
-      color: #c00 !important;
-      font-size: 15px !important;
-    }
+    .prom { font-weight: bold; color: #111; font-size: 18px; }
+    .nota-previa { color: #c00 !important; font-size: 15px !important; }
 
-    /* ── Formulario global ── */
+    /* ── Formularios ── */
     .global-form {
-      background: white;
-      padding: 25px;
-      border-radius: 20px;
-      margin-bottom: 25px;
-      box-shadow: 0 5px 18px rgba(0,0,0,.12);
+      background: white; padding: 25px; border-radius: 20px;
+      margin-bottom: 25px; box-shadow: 0 5px 18px rgba(0,0,0,.12);
     }
-
     .global-form h2 { margin-bottom: 20px; color: #111; }
 
+    /* Formulario de cierre con borde violeta para diferenciarlo */
+    .cierre-form {
+      background: white; padding: 25px; border-radius: 20px;
+      margin-bottom: 25px; box-shadow: 0 5px 18px rgba(0,0,0,.12);
+      border-left: 5px solid #7b1fa2;
+    }
+    .cierre-form h2 { margin-bottom: 6px; color: #7b1fa2; }
+    .cierre-form .cierre-subtitulo { font-size: 13px; color: #888; margin-bottom: 20px; }
+
     .form-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 15px;
-      margin-bottom: 20px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px; margin-bottom: 20px;
+    }
+    .form-grid input, .form-grid select {
+      padding: 12px; border-radius: 10px; border: 1px solid #ccc;
     }
 
-    .form-grid input,
-    .form-grid select {
-      padding: 12px;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-    }
+    .acum-row { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; flex-wrap: wrap; }
+    .acum-row label { font-size: 14px; font-weight: 600; color: #333; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .acum-row select { padding: 10px; border-radius: 10px; border: 1px solid #ccc; font-size: 14px; }
 
-    .acum-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-    }
-
-    .acum-row label {
-      font-size: 14px;
-      font-weight: 600;
-      color: #333;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-    }
-
-    .acum-row select {
-      padding: 10px;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-    }
-
-    .alumno-global {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 15px;
-      padding: 12px;
-      border-bottom: 1px solid #eee;
-    }
-
+    .alumno-global { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px; border-bottom: 1px solid #eee; }
     .alumno-global input { width: 90px; padding: 8px; }
 
-    .global-btn {
-      margin-top: 20px;
-      background: #111;
-      color: white;
-      border: none;
-      padding: 12px 18px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
+    .global-btn { margin-top: 20px; background: #111; color: white; border: none; padding: 12px 18px; border-radius: 10px; cursor: pointer; font-weight: bold; }
     .global-btn:hover { background: #333; }
+
+    .cierre-btn { margin-top: 20px; background: #7b1fa2; color: white; border: none; padding: 12px 18px; border-radius: 10px; cursor: pointer; font-weight: bold; }
+    .cierre-btn:hover { background: #6a1b9a; }
+
+    /* Selector de cierre activo */
+    .cierre-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .cierre-tab {
+      padding: 8px 20px; border-radius: 20px; border: 2px solid #7b1fa2;
+      background: white; color: #7b1fa2; cursor: pointer; font-weight: 600; font-size: 13px;
+    }
+    .cierre-tab.activo { background: #7b1fa2; color: white; }
   </style>
 </head>
 
@@ -284,6 +130,7 @@
 
 <div class="container">
 
+  <!-- Formulario de evaluaciones regulares -->
   <div class="global-form" id="globalForm" style="display:none;">
     <h2>Carga global de notas</h2>
     <div class="form-grid">
@@ -303,7 +150,6 @@
         <option value="4">4to Bimestre</option>
       </select>
     </div>
-
     <div class="acum-row">
       <label>
         <input type="checkbox" id="globalEsAcumulativo" onchange="actualizarSelectOrigen()">
@@ -313,7 +159,6 @@
         <select id="globalEvaluacionOrigen"></select>
       </div>
     </div>
-
     <div id="globalAlumnos"></div>
     <button class="global-btn" onclick="guardarGlobal()">Guardar evaluación global</button>
   </div>
@@ -329,15 +174,35 @@
           <th>3er Bimestre</th>
           <th>4to Bimestre</th>
           <th>2do Cuatrimestre</th>
-          <th>1er Cierre</th>
-          <th>2do Cierre</th>
+          <th>1er Cierre (Dic.)</th>
+          <th>2do Cierre (Feb.)</th>
           <th>Nota Final</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
+  <!-- Formulario de cierres administrativos -->
+  <div class="cierre-form" id="cierreForm" style="display:none;">
+    <h2>Cierres administrativos</h2>
+    <p class="cierre-subtitulo">
+      Cada tema se carga por separado. La nota del cierre se calcula como el promedio de todos los temas.
+      Si el promedio es ≥ 6 el alumno aprueba; si no, queda esa nota y pasa al siguiente cierre.
+    </p>
 
+    <!-- Selector Diciembre / Febrero -->
+    <div class="cierre-tabs">
+      <button class="cierre-tab activo" id="tabDic" onclick="seleccionarCierre(1)">1er Cierre — Diciembre</button>
+      <button class="cierre-tab"        id="tabFeb" onclick="seleccionarCierre(2)">2do Cierre — Febrero</button>
+    </div>
+
+    <div class="form-grid">
+      <input type="text" id="cierreDescripcion" placeholder="Tema del cierre (ej: Álgebra, Unidad 3)">
+    </div>
+
+    <div id="cierreAlumnos"></div>
+    <button class="cierre-btn" onclick="guardarCierre()">Guardar tema de cierre</button>
+  </div>
 </div>
 
 <script src="api.js"></script>
