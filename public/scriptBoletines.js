@@ -31,13 +31,15 @@ async function cargarCursos() {
     }
 
     select.innerHTML = `<option value="">— Seleccioná un curso —</option>`;
+
     for (const curso of data.cursos) {
       const opt = document.createElement("option");
       opt.value = curso.id;
-      opt.textContent = `${curso.anio}° ${curso.division} (${capitalizar(curso.turno)})`;
+      opt.textContent = `${curso.anio}° ${curso.division} (${capitalizar(
+        curso.turno
+      )})`;
       select.appendChild(opt);
     }
-
   } catch (err) {
     console.error("Error al cargar cursos:", err);
     select.innerHTML = `<option value="">Error de conexión</option>`;
@@ -53,8 +55,8 @@ function capitalizar(str) {
 
 async function generarBoletines() {
   const cursoId = document.getElementById("selectCurso").value;
-  const btn     = document.getElementById("generarBtn");
-  const estado  = document.getElementById("estado");
+  const btn = document.getElementById("generarBtn");
+  const estado = document.getElementById("estado");
 
   if (!cursoId) {
     estado.textContent = "Seleccioná un curso primero.";
@@ -64,15 +66,26 @@ async function generarBoletines() {
 
   btn.disabled = true;
   btn.textContent = "Generando boletines...";
-  estado.textContent = "Esto puede tardar unos segundos según la cantidad de alumnos.";
+
+  const enviarMailsTexto = document.getElementById("checkEnviarMails").checked
+    ? " y enviando los mails correspondientes"
+    : "";
+
+  estado.textContent = `Generando los PDFs${enviarMailsTexto}. Esto puede tardar varios segundos según la cantidad de alumnos.`;
   estado.className = "estado";
 
   try {
     const token = localStorage.getItem("token");
+    const enviarMails =
+      document.getElementById("checkEnviarMails").checked;
 
-    const res = await fetch(`/boletines/generar/${cursoId}`, {
+    const endpoint = `/boletines/generar/${cursoId}?enviarMails=${enviarMails}`;
+
+    const res = await fetch(endpoint, {
       method: "GET",
-      headers: { "Authorization": "Bearer " + token }
+      headers: {
+        Authorization: "Bearer " + token,
+      },
     });
 
     if (res.status === 401) {
@@ -83,10 +96,12 @@ async function generarBoletines() {
 
     if (!res.ok) {
       let mensaje = "Error al generar los boletines.";
+
       try {
         const err = await res.json();
         mensaje = err.error || mensaje;
       } catch (_) {}
+
       estado.textContent = mensaje;
       estado.className = "estado error";
       return;
@@ -94,26 +109,31 @@ async function generarBoletines() {
 
     // Descargar el ZIP que devuelve el servidor
     const blob = await res.blob();
-    const url  = window.URL.createObjectURL(blob);
-    const a    = document.createElement("a");
+    const blobUrl = window.URL.createObjectURL(blob);
 
-    // Extraer nombre de archivo del header si está disponible
+    const a = document.createElement("a");
+
+    // Extraer nombre del archivo desde Content-Disposition
     const disposition = res.headers.get("Content-Disposition") || "";
-    const match = disposition.match(/filename="(.+)"/);
-    a.download = match ? match[1] : "boletines.zip";
+    const match = disposition.match(/filename="?([^"]+)"?/);
 
-    a.href = url;
+    a.download = match ? match[1] : "boletines.zip";
+    a.href = blobUrl;
+
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
 
-    estado.textContent = "Boletines generados y descargados correctamente.";
+    window.URL.revokeObjectURL(blobUrl);
+
+    estado.textContent =
+      "Boletines generados y descargados correctamente.";
     estado.className = "estado ok";
-
   } catch (err) {
     console.error("Error al generar boletines:", err);
-    estado.textContent = "Error de conexión al generar los boletines.";
+
+    estado.textContent =
+      "Error de conexión al generar los boletines.";
     estado.className = "estado error";
   } finally {
     btn.disabled = false;

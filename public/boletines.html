@@ -106,17 +106,26 @@
       </select>
     </div>
 
-    <button class="generar-btn" id="generarBtn" onclick="generarBoletines()">
-      Generar boletines (ZIP)
-    </button>
+    <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+  <input type="checkbox" id="checkEnviarMails" checked style="width:18px; height:18px;">
+  <label for="checkEnviarMails" style="margin:0; cursor:pointer;">
+    Enviar boletines por mail a alumnos y familiares
+  </label>
+</div>
+
+<button class="generar-btn" id="generarBtn" onclick="generarBoletines()">
+  Generar boletines (ZIP)
+</button>
 
     <div class="estado" id="estado"></div>
 
     <div class="info-box">
-      <strong>Nota:</strong> el ZIP generado contiene un PDF separado por cada alumno
-      (ej: Boletin_Lopez_Martina.pdf), listo para imprimir o, en una próxima actualización,
-      enviar directamente por correo a cada alumno.
-    </div>
+  <strong>Nota:</strong> el ZIP descargado contiene un PDF separado por cada alumno
+  (ej: Boletin_Lopez_Martina.pdf). Si la opción de envío por mail está activada,
+  cada alumno y su familiar recibirán automáticamente su boletín por correo electrónico,
+  con el asunto "Se envía informe: [período]" según el bimestre o cierre más reciente
+  que tenga cargado.
+</div>
   </div>
 </div>
 
