@@ -19,7 +19,10 @@ if (!id || !localStorage.getItem("token")) {
 }
 
 document.getElementById("userInfo").textContent = usuario;
-
+if (rango === "regente") {
+  const btn = document.getElementById("boletinesBtn");
+  if (btn) btn.style.display = "inline-block";
+}
 // ─── Vista 1: lista de cursos (carpetas) ──────────────────────────────────────
 
 async function cargarCursos() {
@@ -227,11 +230,13 @@ function volverACursos() {
 
 // ─── Punto de entrada ─────────────────────────────────────────────────────────
 
-if (rango === "alumno") {
+// Si es secretario, va directo a la pantalla de boletines (no usa dashboard de materias)
+if (rango === "secretario") {
+  location.href = "boletines.html";
+} else if (rango === "alumno") {
   cargarMateriasAlumno();
 } else if (USA_CARPETAS.includes(rango)) {
   cargarCursos();
 } else {
-  // Rango no reconocido: por seguridad no se muestra nada
   document.getElementById("grid").innerHTML = "<p class='vacio-msg'>Rol no reconocido.</p>";
 }

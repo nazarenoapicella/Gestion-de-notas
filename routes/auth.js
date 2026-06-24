@@ -7,7 +7,7 @@ const rateLimit      = require("express-rate-limit");
 const authMiddleware = require("../middleware/auth");
 
 const DUMMY_HASH     = "$2b$10$yJ9hxJ1bJ3hZ8kL5mN2pOuWqRsT4vX6yA7bC8dE9fG0hI1jK2lM3n";
-const RANGOS_VALIDOS = ["profesor", "alumno", "regente", "preceptor"];
+const RANGOS_VALIDOS = ["profesor", "alumno", "regente", "preceptor", "secretario"];
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
