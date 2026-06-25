@@ -4,14 +4,13 @@ const usuario = localStorage.getItem("usuario");
 const rango   = localStorage.getItem("rango");
 
 const colores = [
-  "#1a73e8",
-  "#e91e63",
-  "#34a853",
-  "#fbbc05",
-  "#673ab7"
+  "linear-gradient(135deg, #2563eb, #1d4ed8)",
+  "linear-gradient(135deg, #db2777, #be185d)",
+  "linear-gradient(135deg, #16a34a, #15803d)",
+  "linear-gradient(135deg, #d97706, #b45309)",
+  "linear-gradient(135deg, #7c3aed, #6d28d9)",
 ];
 
-// Rangos que navegan por carpetas de curso antes de ver materias
 const USA_CARPETAS = ["profesor", "preceptor", "regente"];
 
 if (!id || !localStorage.getItem("token")) {
@@ -19,11 +18,15 @@ if (!id || !localStorage.getItem("token")) {
 }
 
 document.getElementById("userInfo").textContent = usuario;
+
 if (rango === "regente") {
   const btn = document.getElementById("boletinesBtn");
-  if (btn) btn.style.display = "inline-block";
+  if (btn) btn.style.display = "inline-flex";
 }
-// ─── Vista 1: lista de cursos (carpetas) ──────────────────────────────────────
+
+function svgFolder() {
+  return `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>`;
+}
 
 async function cargarCursos() {
   document.getElementById("volverBtn").style.display = "none";
@@ -54,14 +57,15 @@ async function cargarCursos() {
 
       const card = document.createElement("div");
       card.classList.add("card");
+      card.style.animationDelay = `${i * 0.04}s`;
 
       card.innerHTML = `
         <div class="card-header curso-header" style="background:${color}">
-          <span class="curso-icono">📁</span>
+          <span class="curso-icono">${svgFolder()}</span>
           <span class="curso-nombre">${escHTML(curso.anio)}° ${escHTML(curso.division)}</span>
         </div>
         <div class="card-body">
-          <p><strong>Turno:</strong> ${escHTML(curso.turno)}</p>
+          <p><strong>Turno</strong> ${escHTML(curso.turno)}</p>
         </div>
       `;
 
@@ -78,8 +82,6 @@ async function cargarCursos() {
   }
 }
 
-// ─── Vista 2: materias dentro de un curso ─────────────────────────────────────
-
 async function cargarMateriasDeCurso(cursoId, etiquetaCurso) {
   try {
     const res = await apiFetch("/dashboard/curso/" + cursoId);
@@ -94,8 +96,8 @@ async function cargarMateriasDeCurso(cursoId, etiquetaCurso) {
     const data = await res.json();
     const grid = document.getElementById("grid");
 
-    document.getElementById("volverBtn").style.display = "inline-block";
-    document.getElementById("breadcrumb").textContent  = `Cursos > ${etiquetaCurso}`;
+    document.getElementById("volverBtn").style.display = "inline-flex";
+    document.getElementById("breadcrumb").textContent  = `Cursos / ${etiquetaCurso}`;
 
     if (!data.materias || data.materias.length === 0) {
       grid.innerHTML = "<p class='vacio-msg'>No hay materias en este curso.</p>";
@@ -110,18 +112,19 @@ async function cargarMateriasDeCurso(cursoId, etiquetaCurso) {
 
       const card = document.createElement("div");
       card.classList.add("card");
+      card.style.animationDelay = `${i * 0.04}s`;
 
       card.innerHTML = `
         <div class="card-header" style="background:${color}">
           ${escHTML(materia.materia)}
         </div>
         <div class="card-body">
-          <p><strong>Curso:</strong> ${escHTML(materia.anio)}° ${escHTML(materia.division)}</p>
-          <p><strong>Días:</strong> ${escHTML(materia.dias)}</p>
-          <p><strong>Horario:</strong> ${escHTML(materia.horario)}</p>
+          <p><strong>Curso</strong> ${escHTML(materia.anio)}° ${escHTML(materia.division)}</p>
+          <p><strong>Días</strong> ${escHTML(materia.dias)}</p>
+          <p><strong>Horario</strong> ${escHTML(materia.horario)}</p>
           ${
             (rango === "regente" || rango === "preceptor") && materia.nombre_profesor
-              ? `<p><strong>Profesor:</strong> ${escHTML(materia.nombre_profesor)} ${escHTML(materia.apellido)}</p>`
+              ? `<p><strong>Profesor</strong> ${escHTML(materia.nombre_profesor)} ${escHTML(materia.apellido)}</p>`
               : ""
           }
         </div>
@@ -162,8 +165,6 @@ async function cargarMateriasDeCurso(cursoId, etiquetaCurso) {
   }
 }
 
-// ─── Vista directa: materias del alumno (sin carpetas) ────────────────────────
-
 async function cargarMateriasAlumno() {
   document.getElementById("volverBtn").style.display = "none";
   document.getElementById("breadcrumb").textContent   = "";
@@ -193,15 +194,16 @@ async function cargarMateriasAlumno() {
 
       const card = document.createElement("div");
       card.classList.add("card");
+      card.style.animationDelay = `${i * 0.04}s`;
 
       card.innerHTML = `
         <div class="card-header" style="background:${color}">
           ${escHTML(materia.materia)}
         </div>
         <div class="card-body">
-          <p><strong>Curso:</strong> ${escHTML(materia.anio)}° ${escHTML(materia.division)}</p>
-          <p><strong>Días:</strong> ${escHTML(materia.dias)}</p>
-          <p><strong>Horario:</strong> ${escHTML(materia.horario)}</p>
+          <p><strong>Curso</strong> ${escHTML(materia.anio)}° ${escHTML(materia.division)}</p>
+          <p><strong>Días</strong> ${escHTML(materia.dias)}</p>
+          <p><strong>Horario</strong> ${escHTML(materia.horario)}</p>
         </div>
         <div class="card-actions">
           <button class="view-btn">Visualizar notas</button>
@@ -222,15 +224,10 @@ async function cargarMateriasAlumno() {
   }
 }
 
-// ─── Volver a la vista de cursos ──────────────────────────────────────────────
-
 function volverACursos() {
   cargarCursos();
 }
 
-// ─── Punto de entrada ─────────────────────────────────────────────────────────
-
-// Si es secretario, va directo a la pantalla de boletines (no usa dashboard de materias)
 if (rango === "secretario") {
   location.href = "boletines.html";
 } else if (rango === "alumno") {

@@ -5,80 +5,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Generar Boletines</title>
-
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
-
-    body { background: #ececec; min-height: 100vh; }
-
-    .header {
-      background: #111; color: white; padding: 22px 30px;
-      display: flex; justify-content: space-between; align-items: center;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15);
-    }
-    .header h1 { font-size: 24px; }
-    .header p  { color: #ccc; font-size: 13px; }
-
-    .volver-btn {
-      border: none; background: white; color: #111;
-      padding: 10px 18px; border-radius: 10px; cursor: pointer; font-weight: bold;
-    }
-
-    .container {
-      max-width: 700px;
-      margin: 50px auto;
-      padding: 0 20px;
-    }
-
-    .card {
-      background: white;
-      border-radius: 20px;
-      padding: 35px;
-      box-shadow: 0 5px 18px rgba(0,0,0,.12);
-    }
-
-    .card h2 { color: #111; margin-bottom: 8px; }
-    .card .subtitulo { color: #777; font-size: 13px; margin-bottom: 25px; }
-
-    .form-group { margin-bottom: 22px; }
-    .form-group label {
-      display: block; font-size: 13px; font-weight: 600;
-      color: #333; margin-bottom: 8px;
-    }
-    .form-group select {
-      width: 100%; padding: 14px; border-radius: 10px;
-      border: 1px solid #ccc; font-size: 14px; background: white;
-    }
-
-    .generar-btn {
-      width: 100%; padding: 16px; border: none; border-radius: 12px;
-      background: #111; color: white; font-size: 15px; font-weight: bold;
-      cursor: pointer; transition: .2s;
-    }
-    .generar-btn:hover { background: #333; }
-    .generar-btn:disabled { background: #999; cursor: not-allowed; }
-
-    .estado {
-      margin-top: 18px;
-      font-size: 13px;
-      text-align: center;
-      color: #555;
-      min-height: 18px;
-    }
-    .estado.ok    { color: #1a7a1a; font-weight: 600; }
-    .estado.error { color: #c00; font-weight: 600; }
-
-    .info-box {
-      background: #f4f4f4;
-      border-left: 4px solid #7b1fa2;
-      border-radius: 8px;
-      padding: 14px 16px;
-      margin-top: 25px;
-      font-size: 12.5px;
-      color: #555;
-      line-height: 1.5;
-    }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styleBoletines.css">
 </head>
 
 <body>
@@ -88,11 +18,17 @@
     <h1>ET N°35</h1>
     <p>Ingeniero Eduardo Latzina — Emisión de Boletines</p>
   </div>
-  <button class="volver-btn" onclick="location.href='dashboard.html'">Volver</button>
+  <button class="volver-btn" onclick="location.href='dashboard.html'">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Volver
+  </button>
 </div>
 
 <div class="container">
   <div class="card">
+    <div class="card-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>
+    </div>
     <h2>Generar boletines del curso</h2>
     <p class="subtitulo">
       Seleccioná un curso y generá los boletines oficiales de todos sus alumnos.
@@ -106,26 +42,25 @@
       </select>
     </div>
 
-    <div class="form-group" style="display:flex; align-items:center; gap:10px;">
-  <input type="checkbox" id="checkEnviarMails" checked style="width:18px; height:18px;">
-  <label for="checkEnviarMails" style="margin:0; cursor:pointer;">
-    Enviar boletines por mail a alumnos y familiares
-  </label>
-</div>
+    <div class="form-group checkbox-row">
+      <input type="checkbox" id="checkEnviarMails" checked>
+      <label for="checkEnviarMails">Enviar boletines por mail a alumnos y familiares</label>
+    </div>
 
-<button class="generar-btn" id="generarBtn" onclick="generarBoletines()">
-  Generar boletines (ZIP)
-</button>
+    <button class="generar-btn" id="generarBtn" onclick="generarBoletines()">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Generar boletines (ZIP)
+    </button>
 
     <div class="estado" id="estado"></div>
 
     <div class="info-box">
-  <strong>Nota:</strong> el ZIP descargado contiene un PDF separado por cada alumno
-  (ej: Boletin_Lopez_Martina.pdf). Si la opción de envío por mail está activada,
-  cada alumno y su familiar recibirán automáticamente su boletín por correo electrónico,
-  con el asunto "Se envía informe: [período]" según el bimestre o cierre más reciente
-  que tenga cargado.
-</div>
+      <strong>Nota:</strong> el ZIP generado contiene un PDF separado por cada alumno
+      (ej: Boletin_Lopez_Martina.pdf). Si la opción de envío por mail está activada,
+      cada alumno y su familiar recibirán automáticamente su boletín por correo electrónico,
+      con el asunto "Se envía informe: [período]" según el bimestre o cierre más reciente
+      que tenga cargado.
+    </div>
   </div>
 </div>
 

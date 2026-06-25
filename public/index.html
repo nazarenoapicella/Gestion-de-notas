@@ -4,55 +4,82 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ET N35 Ingeniero Eduardo Latzina</title>
+  <title>ET N°35 Ingeniero Eduardo Latzina</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="styleLogin.css">
 </head>
 
 <body>
 
-<div class="container">
-
-  <div class="logo">
-    <h1>ET N°35</h1>
-    <p>Ingeniero Eduardo Latzina</p>
+  <div class="bg-decor">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
   </div>
 
-  <form id="loginForm">
+  <div class="container">
 
-    <input
-      id="usuario"
-      placeholder="Usuario"
-      required
-      autocomplete="username"
-    >
+    <div class="logo">
 
-    <input
-      id="password"
-      type="password"
-      placeholder="Contraseña"
-      required
-      autocomplete="current-password"
-    >
+  <img src="img/logo.jpg" alt="Logo ET N°35" class="logo-img">
 
-    <select id="rango">
-      <option value="profesor">Profesor</option>
-      <option value="alumno">Alumno</option>
-      <option value="regente">Regente</option>
-      <option value="preceptor">Preceptor</option>
-      <option value="secretario">Secretario/a</option>
-    </select>
-
-    <button type="submit">Ingresar</button>
-
-  </form>
-
-  <div class="footer">
-    Sistema institucional escolar
-  </div>
+  <h1>ET N°35</h1>
+  <p>Ingeniero Eduardo Latzina</p>
 
 </div>
 
-<script src="scriptLogin.js"></script>
+    <form id="loginForm">
+
+      <div class="field">
+        <label for="usuario">Usuario</label>
+        <input
+          id="usuario"
+          type="text"
+          placeholder="Tu nombre de usuario"
+          autocomplete="username"
+          required>
+      </div>
+
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <input
+          id="password"
+          type="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          required>
+      </div>
+
+      <div class="field">
+        <label for="rango">Rol</label>
+
+        <select id="rango">
+          <option value="profesor">Profesor</option>
+          <option value="alumno">Alumno</option>
+          <option value="regente">Regente</option>
+          <option value="preceptor">Preceptor</option>
+          <option value="secretario">Secretario/a</option>
+        </select>
+      </div>
+
+      <button type="submit">
+        Ingresar
+      </button>
+
+    </form>
+
+    <div class="footer">
+      Sistema institucional escolar
+    </div>
+
+  </div>
+
+  <script src="scriptLogin.js"></script>
 
 </body>
+
 </html>
