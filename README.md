@@ -10,15 +10,15 @@ Sistema integral de gestión de calificaciones desarrollado para la **Escuela T�
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | HTML5 · CSS3 con tokens de diseño · JavaScript vanilla |
+| Frontend | HTML5 · CSS3 con tokens de diseño (Inter, sistema de diseño con tokens) · JavaScript vanilla |
 | Backend | Node.js 18+ · Express.js 5 |
 | Base de datos | MariaDB 10.4+ / MySQL 8 |
 | Autenticación | JSON Web Tokens (JWT) |
 | Hash de contraseñas | bcrypt (salt 10) |
 | Rate limiting | express-rate-limit |
 | Generación de PDF | PDFKit |
-| Empaquetado ZIP | archiver v7 |
-| Envío de correo | Nodemailer (Gmail App Password) |
+| Empaquetado ZIP | archiver (v7, API CommonJS) |
+| Envío de correo | Nodemailer (Gmail con contraseña de aplicación) |
 | Variables de entorno | dotenv |
 | Tipografía | Inter (Google Fonts) |
 
@@ -26,76 +26,171 @@ Sistema integral de gestión de calificaciones desarrollado para la **Escuela T�
 
 ## Roles del sistema
 
-| Rol | Permiso | Descripción |
+| Rol | Permiso | Descripción / Acceso |
 |---|---|---|
-| **Profesor** | escritura / lectura / ambos | Sus cursos y materias asignadas. Carga global de notas, acumulativas y cierres |
+| **Profesor** | escritura / lectura / ambos | Sus cursos y materias asignadas. Carga global de notas, evaluaciones acumulativas y cierres administrativos |
 | **Alumno** | lectura | Solo sus propias notas, sin carpetas intermedias |
-| **Regente** | escritura / lectura / ambos | Todos los cursos y materias del colegio. Acceso a boletines |
+| **Regente** | escritura / lectura / ambos | Todos los cursos y materias del colegio. Permiso configurable. Acceso a emisión de boletines |
 | **Preceptor** | lectura | Cursos asignados específicamente. Solo lectura |
-| **Secretario/a** | lectura | Todas las divisiones y alumnos. Emisión oficial de boletines en PDF |
+| **Secretario/a** | lectura | Todas las divisiones, materias y alumnos. Función exclusiva: emisión oficial de boletines en PDF y envío por mail |
 
 ---
 
-## Funcionalidades
+## Funcionalidades principales
 
-- Login seguro con JWT (8 horas) y rate limiting (10 intentos / 15 min por IP)
+- Login seguro con JWT (8 horas de validez) y rate limiting (10 intentos / 15 min por IP)
 - Cambio obligatorio de contraseña en el primer ingreso
-- Dashboard con navegación por carpetas de curso → materias (excepto alumno)
-- Carga global de evaluaciones por curso completo
-- Sistema de evaluaciones acumulativas (recuperatorios que saldan notas previas desaprobadas)
+- Dashboard con navegación por carpetas de curso → materias (excepto alumno, que ve sus materias directo)
+- Carga global de evaluaciones por curso completo (examen, oral, TP, participación con ajustes +1/+0.5/-0.5)
+- Sistema de evaluaciones acumulativas: recuperatorios que saldan notas previas desaprobadas, dejando registro histórico tachado
 - Cálculo automático de promedios bimestrales, cuatrimestrales y nota final
-- Cierres administrativos de Diciembre y Febrero con selectores dinámicos por alumno y tema
-- Boletines oficiales en PDF con firma institucional, empaquetados en ZIP
-- Envío automático de boletines por mail a alumno y familiar con detección automática del período cursado
+- Cierres administrativos de Diciembre y Febrero con selectores dinámicos por alumno y tema adeudado
+- Nota final con lógica de PREVIA si no se aprueba ningún cierre
+- Boletines oficiales en PDF (uno por alumno) con firma institucional, empaquetados en ZIP
+- Envío automático de boletines por mail a alumno y familiar, con detección automática del período más avanzado cursado
 - Diseño responsive con sistema de tokens CSS, Inter, degradés, sombras en capas y transiciones
+
+---
+
+## Lógica de negocio — Cálculo de calificaciones
+
+### Tipos de evaluación y ajustes
+- Examen escrito, Oral, Trabajo Práctico: nota de 1 a 10, se promedian de forma convencional
+- Participación +1 / +0.5 / -0.5: se suman o restan directamente sobre el promedio base del bimestre (no son notas que se promedian, son ajustes)
+
+### Evaluaciones acumulativas
+Si un alumno desaprueba una evaluación (nota < 6), el profesor puede cargar una evaluación posterior marcada como "acumulativa" de la anterior. Reglas:
+- Si la acumulativa se aprueba (≥6) y la evaluación original estaba desaprobada (<6): la original queda saldada (tachada, registro histórico)
+- Si la acumulativa y la saldada pertenecen al **mismo bimestre**: se excluye la saldada del promedio y se calcula normalmente con el resto (el bimestre se recalcula sin esa nota)
+- Si pertenecen a **bimestres distintos**: el bimestre de origen sigue mostrando DESAPROBADO como registro permanente, aunque esa nota puntual esté saldada (el cuatrimestre sí puede aprobar)
+- Si la evaluación original ya tenía nota ≥6, una acumulativa que la referencie no salda nada (no hay nada que saldar)
+
+### Bimestres y cuatrimestres
+- Bimestre DESAPROBADO: si tiene cualquier evaluación normal con nota <6 sin saldar
+- 1er Cuatrimestre = promedio efectivo de 1° y 2° Bimestre (excluyendo notas saldadas)
+- 2do Cuatrimestre = promedio efectivo de 3° y 4° Bimestre
+- Si algún bimestre efectivo es DESAPROBADO, el cuatrimestre completo es DESAPROBADO sin importar el promedio numérico
+
+### Cierres administrativos (Diciembre y Febrero)
+- Se habilitan automáticamente cuando el promedio anual es menor a 6 o algún cuatrimestre quedó DESAPROBADO
+- **1er Cierre (Diciembre):** el profesor selecciona, por alumno, el tema adeudado (cualquier nota <6 sin saldar, de cualquier bimestre o cierre anterior) y carga la nueva nota
+- **2do Cierre (Febrero):** el profesor selecciona, por alumno, alguno de los temas que seguían desaprobados tras diciembre, y carga la nueva nota
+- Ambos cierres son dinámicos: a medida que se cargan notas, los alumnos/temas que ya aprobaron desaparecen de los selectores
+- Nota final = la nota del cierre donde aprobó (≥6); si no aprueba en ningún cierre, la nota final es **PREVIA**
+
+---
+
+## Generación y envío de boletines
+
+### Boletín en PDF (PDFKit)
+Generado en el servidor, un archivo por alumno, con:
+- Encabezado institucional con degradé
+- Datos del alumno (nombre, apellido, DNI, curso, turno)
+- Una tabla por materia con: 1er y 2do Bimestre, 1er Cuatrimestre, 3er y 4to Bimestre, 2do Cuatrimestre, 1er y 2do Cierre, Nota Final
+- **Cualquier valor numérico menor a 6 se muestra en rojo** (no solo el texto "DESAPROBADO"), para que cualquier nota reprobatoria sea visualmente inequívoca
+- Todos los períodos se muestran siempre, incluso vacíos (con "-"), para que el boletín sea consistente a lo largo del año sin importar cuántas veces se lo genere
+- Salto de página automático cuando hay muchas materias
+- Pie con espacios de firma para Preceptor/a, Regente y Dirección, dándole validez institucional al documento impreso
+
+### Descarga en ZIP
+El secretario o regente selecciona un curso desde una pantalla dedicada y genera todos los boletines de una vez. Se descarga un único archivo ZIP que contiene un PDF independiente por alumno (ej: `Boletin_Lopez_Martina.pdf`), pensado para que cada PDF sea una unidad atómica reutilizable en el envío de mails.
+
+### Envío automático por correo (Nodemailer + Gmail)
+Al generar los boletines, opcionalmente se envían dos correos por alumno:
+- Uno a `email_usuario` (el alumno)
+- Uno a `email_familiar` (la familia)
+
+El asunto del mail es `"Se envía informe: <período>"`, donde el período se determina automáticamente como **el bimestre o cierre más avanzado del año en el que el alumno tiene al menos una nota cargada**, mirando todas sus materias en conjunto (por ejemplo, si una materia ya tiene 3er bimestre cargado y otra solo 1er bimestre, el período informado es "3er Bimestre"). El envío usa autenticación de Gmail con contraseña de aplicación.
+
+---
+
+## Roles y navegación del dashboard
+
+- **Alumno:** ve directamente sus materias (sin carpetas intermedias)
+- **Profesor / Preceptor / Regente:** navegan primero por carpetas de curso (5°A, 4°A, etc.) y al entrar ven las materias de ese curso específico, con botón de "Volver a cursos"
+- **Secretario:** accede directamente a una pantalla dedicada de generación de boletines (no usa el dashboard de materias)
+- El Regente tiene además acceso directo a la emisión de boletines desde su dashboard
+
+---
+
+## Diseño visual
+
+El sistema utiliza un sistema de diseño propio (`tokens.css`) con:
+- Tipografía **Inter** en toda la interfaz
+- Paleta institucional negro/blanco con acentos funcionales por estado: verde (aprobado), rojo (desaprobado/alerta), violeta (cierres administrativos), azul (evaluaciones acumulativas)
+- Sombras en capas para dar profundidad real sin perder sobriedad
+- Degradés sutiles en headers y como barra de acento superior en cards y tablas
+- Transiciones de 150-220ms en interacciones (hover, click, aparición de filas/cards)
+- Diseño totalmente responsive: navegación adaptada en mobile, tablas con scroll horizontal contenido, formularios que pasan a una columna
+- Accesibilidad: `prefers-reduced-motion` respetado, focus visible en todos los controles interactivos
+
+---
+
+## Modelo de datos
+
+### Tablas principales
+- `usuarios` — todos los actores del sistema (rango: profesor, alumno, regente, preceptor, secretario), con `email_usuario` y `email_familiar` para el envío de boletines
+- `cursos` — año, división, turno
+- `materias` — catálogo de materias
+- `curso_materia` — relación curso↔materia con días y horario
+- `profesor_materia` — asignación de profesores a curso_materia
+- `preceptor_curso` — asignación de preceptores a cursos completos
+- `alumno_curso` — inscripción de alumnos a cursos
+- `evaluaciones` — exámenes, TPs, participaciones, cierres; incluye `es_acumulativo` y `evaluacion_origen_id` (autorreferencia) para el sistema de saldado
+- `notas` — calificación de cada alumno por evaluación
+
+### Relaciones clave
+- Un alumno inscripto en un curso accede automáticamente a todas las materias de ese curso
+- Un preceptor asignado a un curso ve todas sus materias en modo lectura
+- Las evaluaciones de cierre (Diciembre/Febrero) referencian a la evaluación original que adeudan vía `evaluacion_origen_id`, con `ON DELETE CASCADE` para mantener integridad si se elimina la evaluación de origen
 
 ---
 
 ## Estructura del proyecto
 
-```
+```txt
 gestion-notas/
 │
 ├── db/
-│   └── connection.js          # Pool de conexiones MariaDB
+│   └── connection.js              # Pool de conexiones MariaDB
 │
 ├── middleware/
-│   └── auth.js                # Verificación de JWT en rutas protegidas
+│   └── auth.js                    # Verificación de JWT en rutas protegidas
 │
 ├── lib/
-│   ├── calculoNotas.js        # Lógica de promedios portada al backend (boletines)
-│   ├── generarBoletinPDF.js   # Generador de PDFs con PDFKit
-│   ├── detectarPeriodo.js     # Detección del bimestre/cierre más avanzado cursado
-│   └── mailer.js              # Configuración y envío de mails via Gmail
+│   ├── calculoNotas.js            # Lógica de promedios portada al backend (boletines)
+│   ├── generarBoletinPDF.js       # Generador de PDFs con PDFKit
+│   ├── detectarPeriodo.js         # Detección del bimestre/cierre más avanzado cursado
+│   └── mailer.js                  # Configuración y envío de mails vía Gmail
 │
 ├── routes/
-│   ├── auth.js                # POST /api/login · POST /api/cambiar-password
-│   ├── dash.js                # GET /dashboard/:id · GET /dashboard/curso/:cursoId
-│   ├── planilla.js            # GET · POST · PATCH · DELETE /planilla/...
-│   └── boletines.js           # GET /boletines/cursos · GET /boletines/generar/:cursoId
+│   ├── auth.js                    # POST /api/login · POST /api/cambiar-password
+│   ├── dash.js                    # GET /dashboard/:id · GET /dashboard/curso/:cursoId
+│   ├── planilla.js                # GET · POST · PATCH · DELETE /planilla/...
+│   └── boletines.js               # GET /boletines/cursos · GET /boletines/generar/:cursoId
 │
 ├── public/
-│   ├── tokens.css             # Sistema de diseño compartido (variables CSS)
-│   ├── index.html             # Login
+│   ├── tokens.css                 # Sistema de diseño compartido (variables CSS)
+│   ├── index.html                 # Login
 │   ├── styleLogin.css
 │   ├── scriptLogin.js
-│   ├── dashboard.html         # Panel principal
+│   ├── dashboard.html             # Panel principal
 │   ├── styleDashboard.css
 │   ├── scriptDashboard.js
-│   ├── planilla.html          # Tabla de notas
+│   ├── planilla.html              # Tabla de notas
 │   ├── stylePlanilla.css
 │   ├── scriptPlanilla.js
-│   ├── boletines.html         # Pantalla de secretario/a
+│   ├── boletines.html             # Pantalla de secretario/a
 │   ├── styleBoletines.css
 │   ├── scriptBoletines.js
-│   ├── cambiar.html           # Cambio de contraseña obligatorio
-│   └── api.js                 # apiFetch() + escHTML() compartidos
+│   ├── cambiar.html               # Cambio de contraseña obligatorio
+│   └── api.js                     # apiFetch() + escHTML() compartidos
 │
-├── .env                       # Variables de entorno — NO subir al repositorio
+├── .env                           # Variables de entorno — NO subir al repositorio
 ├── .gitignore
-├── hash.js                    # Utilidad para generar hashes bcrypt
+├── hash.js                        # Utilidad para generar hashes bcrypt
 ├── package.json
-└── server.js                  # Punto de entrada del servidor
+└── server.js                      # Punto de entrada del servidor
 ```
 
 ---
@@ -447,11 +542,11 @@ pm2 stop gestion-notas           # detener el servidor
 
 1. Ir a [myaccount.google.com](https://myaccount.google.com)
 2. Seguridad → Verificación en dos pasos → activar
-3. Seguridad → Contraseñas de aplicaciones → crear una para "Mail"
+3. Seguridad → Contraseñas de aplicaciones → crear una para "Mail" (o directamente en `myaccount.google.com/apppasswords`)
 4. Copiar la clave de 16 caracteres generada
-5. Pegarla en `.env` como valor de `GMAIL_APP_PASSWORD`
+5. Pegarla en `.env` como valor de `GMAIL_APP_PASSWORD` (junto con `GMAIL_USER`)
 
-> La cuenta de Gmail gratuita tiene un límite de ~500 mails por día. Si el colegio tiene muchos cursos y emite boletines el mismo día para varios, considerar Google Workspace.
+> La cuenta de Gmail gratuita tiene un límite de ~500 mails por día. Si el colegio tiene muchos cursos y emite boletines el mismo día para varios, considerar Google Workspace o un servicio SMTP dedicado a futuro.
 
 ---
 
@@ -459,44 +554,21 @@ pm2 stop gestion-notas           # detener el servidor
 
 | Mecanismo | Descripción |
 |---|---|
-| JWT (8 horas) | Autenticación stateless, una jornada escolar completa |
-| bcrypt salt 10 | Contraseñas nunca almacenadas en texto plano |
+| JWT (8 horas) | Autenticación stateless, token válido una jornada escolar completa |
+| bcrypt (salt 10) | Hash seguro de contraseñas, nunca se almacena texto plano |
 | Dummy hash timing-safe | Previene enumeración de usuarios por diferencia de tiempo de respuesta |
 | Rate limiting | 10 intentos de login por IP cada 15 minutos |
 | authMiddleware | JWT verificado en cada ruta protegida |
-| Validación de ownership | Profesores solo acceden a sus materias; preceptores a sus cursos asignados |
+| Validación de ownership | Profesores solo acceden a sus materias; preceptores a sus cursos asignados; secretario y regente con acceso total controlado por rol |
+| Validación de rango | Lista blanca de roles válidos en login |
 | Sanitización XSS | `escHTML()` en todo el frontend antes de inyectar en el DOM |
 | Consultas parametrizadas | Sin concatenación de strings en SQL, sin riesgo de injection |
-| Validación de entrada | Tipos, rangos y longitudes verificados en el backend |
+| Validación de entrada | Tipos, rangos y longitudes verificados en el backend antes de tocar la BD |
 | Body size limit | Máximo 10 kb por request JSON |
-| Variables de entorno | Secretos fuera del código fuente |
+| Variables de entorno | Secretos (JWT, Gmail) fuera del código fuente |
+| Manejo de errores global | Handler de errores y listeners de unhandledRejection/uncaughtException en server.js |
 | Transacciones BD | INSERT y DELETE críticos con rollback automático ante error |
-| Foreign keys CASCADE | Integridad referencial automática en toda la base de datos |
-
----
-
-## Lógica de negocio — Resumen
-
-### Tipos de evaluación
-- **Examen / Oral / TP:** nota de 1 a 10, se promedian de forma convencional
-- **Participación (+1 / +0.5 / -0.5):** ajuste sobre el promedio base del bimestre, no se promedia
-
-### Evaluaciones acumulativas
-Un profesor puede marcar una evaluación nueva como "acumulativa" de una anterior desaprobada:
-- Si la acumulativa aprueba (≥6) y la original estaba desaprobada (<6): la original queda **saldada** (tachada, excluida del promedio)
-- Si la acumulativa y la saldada están en el **mismo bimestre**: el bimestre se recalcula sin la nota saldada
-- Si están en **bimestres distintos**: el bimestre de origen queda DESAPROBADO de forma permanente como registro histórico, pero el cuatrimestre sí puede aprobar
-
-### Cuatrimestres
-- 1er Cuatrimestre = promedio efectivo del 1° y 2° Bimestre
-- 2do Cuatrimestre = promedio efectivo del 3° y 4° Bimestre
-- Si algún bimestre efectivo es DESAPROBADO → cuatrimestre DESAPROBADO completo
-
-### Cierres administrativos
-- Se habilitan automáticamente cuando el promedio anual < 6 o algún cuatrimestre quedó DESAPROBADO
-- **Diciembre:** selectores dinámicos de alumno + tema adeudado; se actualiza al cargar notas
-- **Febrero:** igual, pero solo muestra los temas desaprobados en Diciembre
-- Nota final = nota del cierre donde aprueba · si no aprueba ninguno = **PREVIA**
+| Foreign keys CASCADE | Integridad referencial automática en toda la base de datos, incluyendo evaluaciones acumulativas |
 
 ---
 
@@ -517,6 +589,18 @@ Un profesor puede marcar una evaluación nueva como "acumulativa" de una anterio
 
 ---
 
+## .gitignore recomendado
+
+```
+node_modules/
+.env
+*.log
+.DS_Store
+Thumbs.db
+```
+
+---
+
 ## Requisitos del servidor (instalación local)
 
 ### Hardware
@@ -528,16 +612,17 @@ Un profesor puede marcar una evaluación nueva como "acumulativa" de una anterio
 | Almacenamiento | 10 GB libres | 20 GB libres (SSD) |
 | Red | WiFi / Ethernet interno | Ethernet (más estable) |
 
-Una Raspberry Pi 4 (4 GB) o una PC de escritorio retirada de uso son suficientes.
+Una Raspberry Pi 4 (4 GB) o una PC de escritorio retirada de uso administrativo son suficientes.
 
 ### Software
 
 | Requisito | Versión | Cómo verificar |
 |---|---|---|
+| Sistema operativo | Windows 10/11, Ubuntu Server 22.04 LTS, o Debian 12 | — |
 | Node.js | 18 o superior | `node --version` |
 | MariaDB | 10.4+ (o MySQL 8) | `mysql --version` |
 | npm | incluido con Node.js | `npm --version` |
-| Git | cualquiera | `git --version` |
+| Git (opcional) | cualquiera | `git --version` |
 
 ### Puertos
 
@@ -548,15 +633,23 @@ Una Raspberry Pi 4 (4 GB) o una PC de escritorio retirada de uso son suficientes
 
 ---
 
-## .gitignore recomendado
+## Stack tecnológico completo
 
-```
-node_modules/
-.env
-*.log
-.DS_Store
-Thumbs.db
-```
+| Categoría | Tecnología | Uso en el proyecto |
+|---|---|---|
+| Runtime | Node.js 18+ | Ejecuta todo el backend |
+| Framework backend | Express.js 5 | Enrutamiento HTTP y middlewares |
+| Base de datos | MariaDB 10.4+ / MySQL 8 | Persistencia de usuarios, cursos, notas |
+| Driver de BD | mariadb (npm) | Pool de conexiones asíncrono |
+| Autenticación | jsonwebtoken | Generación y verificación de JWT |
+| Hashing | bcrypt | Hash de contraseñas con salt 10 |
+| Rate limiting | express-rate-limit | Protección del endpoint de login |
+| Generación de PDF | pdfkit | Boletines oficiales en PDF |
+| Compresión | archiver (v7, API CommonJS) | Empaquetado de boletines en ZIP |
+| Envío de mail | nodemailer | Envío de boletines vía Gmail (App Password) |
+| Variables de entorno | dotenv | Configuración fuera del código fuente |
+| Frontend | HTML5, CSS3, JavaScript vanilla | Sin frameworks ni bundlers |
+| Tipografía | Inter (Google Fonts) | Sistema de diseño visual |
 
 ---
 
