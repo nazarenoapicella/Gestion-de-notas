@@ -5,6 +5,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Planilla</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- SheetJS: lectura y escritura de Excel desde el navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
 
@@ -51,6 +56,15 @@
     .eval-cierre-badge.feb { background: #e65100; }
     .eval button { margin-top: 6px; background: #c00; color: white; border: none; padding: 5px 10px; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 600; }
     .eval button:hover { background: #a00; }
+
+    .btn-liberar-override {
+      display: inline-block; margin-left: 6px; padding: 2px 7px;
+      font-size: 13px; line-height: 1; cursor: pointer;
+      background: #fff3cd; border: 1px solid #f59e0b; border-radius: 6px;
+      color: #92400e; font-weight: 600; vertical-align: middle;
+      transition: background .15s;
+    }
+    .btn-liberar-override:hover { background: #fde68a; }
 
     .bim-resumen { margin-top: 10px; padding-top: 8px; border-top: 2px solid #ddd; background: #f9f9f9; border-radius: 0 0 8px 8px; }
     .bim-resumen-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
@@ -142,6 +156,143 @@
     .cierre-btn:hover { background: #6a1b9a; }
 
     .sin-pendientes { color: #888; font-size: 14px; padding: 12px 0; }
+    .import-toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .import-btn, .template-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 13.5px;
+      font-weight: 700;
+      font-family: inherit;
+      transition: filter .15s var(--ease, ease), transform .15s var(--ease, ease);
+    }
+
+    .import-btn {
+      background: linear-gradient(145deg, #16a34a, #15803d);
+      color: white;
+    }
+
+    .template-btn {
+      background: var(--surface, #fff);
+      color: var(--text, #1c1d21);
+      border: 1.5px solid var(--border, #e5e7eb);
+    }
+
+    .import-btn:hover, .template-btn:hover { filter: brightness(1.08); }
+    .import-btn:active, .template-btn:active { transform: scale(.96); }
+
+    /* Input de archivo oculto, se activa con el botón */
+    #inputExcel { display: none; }
+
+    /* ── Panel de resultados de importación ── */
+    .import-resultado {
+      display: none;
+      background: var(--surface, #fff);
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 22px;
+      box-shadow: 0 4px 16px rgba(10,10,10,.08);
+      border: 1px solid var(--border-soft, #eef0f2);
+      border-left: 4px solid #16a34a;
+    }
+
+    .import-resultado h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink, #0a0a0a);
+      margin-bottom: 12px;
+    }
+
+    .import-stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .import-stat {
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 12.5px;
+      font-weight: 700;
+    }
+
+    .stat-ok    { background: #ecfdf3; color: #15803d; }
+    .stat-skip  { background: #fef9ec; color: #a16207; }
+    .stat-new   { background: #eff4ff; color: #1d4ed8; }
+    .stat-error { background: #fef2f2; color: #b91c1c; }
+
+    .import-filas { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+
+    .import-fila {
+      padding: 11px 14px;
+      border-radius: 10px;
+      background: var(--surface-alt, #f4f5f7);
+      font-size: 13px;
+      border-left: 3px solid transparent;
+    }
+
+    .import-fila.ok-fila    { border-left-color: #16a34a; }
+    .import-fila.nuevo-fila { border-left-color: #2563eb; }
+    .import-fila.error-fila { border-left-color: #dc2626; background: #fef2f2; }
+
+    .import-fila-nombre { font-weight: 700; color: var(--text, #1c1d21); margin-bottom: 4px; }
+
+    .import-fila-badge {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    .badge-nuevo    { background: #dbeafe; color: #1d4ed8; }
+    .badge-encontrado { background: #ecfdf3; color: #15803d; }
+    .badge-error    { background: #fecaca; color: #b91c1c; }
+
+    .import-fila-info { font-size: 12px; color: var(--text-muted, #6b7280); margin-top: 4px; }
+    .import-fila-creds {
+      font-family: monospace;
+      font-size: 11.5px;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 5px;
+    }
+
+    .import-cerrar-btn {
+      margin-top: 18px;
+      background: var(--surface-alt, #f4f5f7);
+      color: var(--text, #1c1d21);
+      border: 1.5px solid var(--border, #e5e7eb);
+      padding: 10px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 13.5px;
+      font-weight: 600;
+      font-family: inherit;
+    }
+
+    .import-cargando {
+      text-align: center;
+      padding: 28px;
+      color: var(--text-muted, #6b7280);
+      font-size: 14px;
+    }
   </style>
 </head>
 
@@ -153,7 +304,10 @@
     <p>ET N°35 Ingeniero Eduardo Latzina</p>
     <span id="materiaInfo"></span>
   </div>
-  <button class="volver-btn" onclick="history.back()">Volver</button>
+  <button class="volver-btn" onclick="history.back()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Volver
+  </button>
 </div>
 
 <div class="container">
@@ -188,28 +342,46 @@
       </div>
     </div>
     <div id="globalAlumnos"></div>
-    <button class="global-btn" onclick="guardarGlobal()">Guardar evaluación global</button>
+    <div class="import-toolbar" style="margin-top: 20px;">
+      <button class="global-btn" onclick="guardarGlobal()">Guardar evaluación global</button>
+
+      <!-- Botones de importación Excel (solo si tiene permiso de escritura) -->
+      <button class="template-btn" id="btnDescargarPlantilla" onclick="descargarPlantilla()" style="display:none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Descargar plantilla
+      </button>
+      <button class="import-btn" id="btnImportarExcel" onclick="document.getElementById('inputExcel').click()" style="display:none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        Importar desde Excel
+      </button>
+      <input type="file" id="inputExcel" accept=".xlsx,.xls,.csv" onchange="importarExcel(event)">
+    </div>
+
+    <!-- Panel de resultados de importación -->
+    <div class="import-resultado" id="importResultado"></div>
   </div>
 
   <!-- Tabla de planilla -->
   <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          <th>Alumno</th>
-          <th>1er Bimestre</th>
-          <th>2do Bimestre</th>
-          <th>1er Cuatrimestre</th>
-          <th>3er Bimestre</th>
-          <th>4to Bimestre</th>
-          <th>2do Cuatrimestre</th>
-          <th>1er Cierre (Dic.)</th>
-          <th>2do Cierre (Feb.)</th>
-          <th>Nota Final</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Alumno</th>
+            <th>1er Bimestre</th>
+            <th>2do Bimestre</th>
+            <th>1er Cuatrimestre</th>
+            <th>3er Bimestre</th>
+            <th>4to Bimestre</th>
+            <th>2do Cuatrimestre</th>
+            <th>1er Cierre (Dic.)</th>
+            <th>2do Cierre (Feb.)</th>
+            <th>Nota Final</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Formulario de cierres (se renderiza dinámicamente debajo de la tabla) -->
