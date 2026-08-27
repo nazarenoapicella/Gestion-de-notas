@@ -195,3 +195,9 @@ body { background: var(--bg); min-height: 100vh; }
   .container { margin: 32px auto; }
   .card { padding: 28px 22px; }
 }
+.excel-btn {
+  background: linear-gradient(145deg, #15803d, #166534);
+  margin-top: 10px;
+}
+
+.excel-btn:hover { filter: brightness(1.1); }

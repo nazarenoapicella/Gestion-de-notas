@@ -140,7 +140,77 @@ async function generarBoletines() {
     btn.textContent = "Generar boletines (ZIP)";
   }
 }
+async function descargarExcel() {
+  const cursoId = document.getElementById("selectCurso").value;
+  const btn     = document.getElementById("excelBtn");
+  const estado  = document.getElementById("estado");
 
+  if (!cursoId) {
+    estado.textContent = "Seleccioná un curso primero.";
+    estado.className   = "estado error";
+    return;
+  }
+
+  const iconoOriginal = btn.innerHTML;
+  btn.disabled    = true;
+  btn.textContent = "Generando Excel...";
+  estado.textContent = "Calculando notas y armando el archivo…";
+  estado.className   = "estado";
+
+  try {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(`/boletines/excel/${cursoId}`, {
+      method:  "GET",
+      headers: { "Authorization": "Bearer " + token }
+    });
+
+    if (res.status === 401) {
+      localStorage.clear();
+      location.href = "index.html";
+      return;
+    }
+
+    if (!res.ok) {
+      let mensaje = `Error del servidor (${res.status})`;
+      try {
+        const texto = await res.text();
+        if (!texto.trim().startsWith("<")) {
+          const json = JSON.parse(texto);
+          mensaje = json.error || mensaje;
+        }
+      } catch (_) {}
+      estado.textContent = mensaje;
+      estado.className   = "estado error";
+      return;
+    }
+
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+
+    const cd    = res.headers.get("Content-Disposition") || "";
+    const match = cd.match(/filename="(.+?)"/);
+    a.download  = match ? match[1] : "Calificaciones.xlsx";
+
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    estado.textContent = "Planilla Excel descargada correctamente.";
+    estado.className   = "estado ok";
+
+  } catch (err) {
+    console.error("Error al descargar Excel:", err);
+    estado.textContent = "Error de conexión al generar el Excel.";
+    estado.className   = "estado error";
+  } finally {
+    btn.disabled  = false;
+    btn.innerHTML = iconoOriginal;
+  }
+}
 // ─── Inicio ────────────────────────────────────────────────────────────────────
 
 cargarCursos();

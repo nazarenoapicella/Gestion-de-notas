@@ -48,19 +48,24 @@
     </div>
 
     <button class="generar-btn" id="generarBtn" onclick="generarBoletines()">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-      Generar boletines (ZIP)
-    </button>
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+  Generar boletines PDF (ZIP)
+</button>
 
-    <div class="estado" id="estado"></div>
+<button class="generar-btn excel-btn" id="excelBtn" onclick="descargarExcel()">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8l4 4-4 4M12 16h4"/></svg>
+  Descargar planilla Excel
+</button>
 
-    <div class="info-box">
-      <strong>Nota:</strong> el ZIP generado contiene un PDF separado por cada alumno
-      (ej: Boletin_Lopez_Martina.pdf). Si la opción de envío por mail está activada,
-      cada alumno y su familiar recibirán automáticamente su boletín por correo electrónico,
-      con el asunto "Se envía informe: [período]" según el bimestre o cierre más reciente
-      que tenga cargado.
-    </div>
+<div class="estado" id="estado"></div>
+
+<div class="info-box">
+  <strong>PDF (ZIP):</strong> genera un boletín individual por alumno, se descarga comprimido
+  y, si la opción está activada, se envía automáticamente por correo a cada alumno y familiar.<br><br>
+  <strong>Excel:</strong> genera un archivo con todas las materias del curso y los promedios
+  de todos los alumnos, listo para imprimir o archivar localmente. Incluye el nombre del
+  profesor a cargo de cada materia. No se envía por mail.
+</div>
   </div>
 </div>
 
