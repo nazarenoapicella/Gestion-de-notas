@@ -17,6 +17,8 @@ Sistema integral de gestión de calificaciones desarrollado para la **Escuela T�
 | Hash de contraseñas | bcrypt (salt 10) |
 | Rate limiting | express-rate-limit |
 | Generación de PDF | PDFKit |
+| Generación de Excel | ExcelJS |
+| Lectura de Excel (cliente) | SheetJS / XLSX (CDN, frontend) |
 | Empaquetado ZIP | archiver (v7, API CommonJS) |
 | Envío de correo | Nodemailer (Gmail con contraseña de aplicación) |
 | Variables de entorno | dotenv |
@@ -32,7 +34,7 @@ Sistema integral de gestión de calificaciones desarrollado para la **Escuela T�
 | **Alumno** | lectura | Solo sus propias notas, sin carpetas intermedias |
 | **Regente** | escritura / lectura / ambos | Todos los cursos y materias del colegio. Permiso configurable. Acceso a emisión de boletines |
 | **Preceptor** | lectura | Cursos asignados específicamente. Solo lectura |
-| **Secretario/a** | lectura | Todas las divisiones, materias y alumnos. Función exclusiva: emisión oficial de boletines en PDF y envío por mail |
+| **Secretario/a** | lectura | Todas las divisiones, materias y alumnos. Función exclusiva: emisión oficial de boletines en PDF (con envío por mail) y descarga de planilla Excel completa por curso |
 
 ---
 
@@ -48,6 +50,9 @@ Sistema integral de gestión de calificaciones desarrollado para la **Escuela T�
 - Nota final con lógica de PREVIA si no se aprueba ningún cierre
 - Boletines oficiales en PDF (uno por alumno) con firma institucional, empaquetados en ZIP
 - Envío automático de boletines por mail a alumno y familiar, con detección automática del período más avanzado cursado
+- **Importación de notas desde Excel** por parte del profesor: descarga una plantilla con sus alumnos, completa las notas y las importa de vuelta — si el alumno no existe en el sistema se crea automáticamente con contraseña temporal
+- **Exportación de planilla Excel del profesor** (por materia) con estilos, colores por período y notas calculadas incluidas
+- **Exportación de planilla Excel del secretario** (por curso completo): un workbook con hoja de resumen de notas finales + una hoja detallada por materia con el nombre del profesor a cargo
 - Diseño responsive con sistema de tokens CSS, Inter, degradés, sombras en capas y transiciones
 
 ---
@@ -101,6 +106,23 @@ Al generar los boletines, opcionalmente se envían dos correos por alumno:
 - Uno a `email_familiar` (la familia)
 
 El asunto del mail es `"Se envía informe: <período>"`, donde el período se determina automáticamente como **el bimestre o cierre más avanzado del año en el que el alumno tiene al menos una nota cargada**, mirando todas sus materias en conjunto (por ejemplo, si una materia ya tiene 3er bimestre cargado y otra solo 1er bimestre, el período informado es "3er Bimestre"). El envío usa autenticación de Gmail con contraseña de aplicación.
+
+### Planilla Excel del secretario (ExcelJS)
+Desde la misma pantalla de boletines, el secretario puede descargar una planilla Excel completa del curso. Solo se guarda localmente, no se envía por mail. El archivo generado contiene:
+- **Hoja "Resumen del Curso":** una fila por alumno, una columna de Nota Final por cada materia del curso
+- **Una hoja por materia:** desglose completo (1° a 4° Bimestre, ambos Cuatrimestres, 1er y 2do Cierre, Nota Final) con todos los alumnos. Incluye en el encabezado el nombre del profesor/a a cargo de esa materia
+- Notas en **rojo** si son reprobatorias (<6, DESAPROBADO o PREVIA), en **verde** si son aprobadas (≥6)
+- Filas alternadas para facilitar la lectura, columnas calculadas visualmente diferenciadas
+- Nombre de archivo descriptivo: `Calificaciones_5A_27-8-2026.xlsx`
+
+### Importación y exportación Excel del profesor (ExcelJS + SheetJS)
+El profesor puede, desde la planilla de cualquiera de sus materias:
+- **Descargar una plantilla** Excel con sus alumnos actuales pre-cargados y las columnas correctas (bimestres, cierres), generada en el servidor con ExcelJS con estilos completos y notas actuales ya incluidas
+- **Importar el Excel** completado: SheetJS parsea el archivo en el navegador y envía los datos al backend, que los procesa alumno por alumno:
+  - Busca el alumno por apellido + nombre (comparación accent e case insensitive)
+  - Si no existe, lo crea con contraseña temporal `ET35` y lo inscribe al curso
+  - Solo importa los períodos que no tengan datos previos (no sobreescribe)
+  - El panel de resultados muestra exactamente qué se importó, qué se omitió y qué usuarios nuevos se crearon con sus credenciales
 
 ---
 
@@ -166,8 +188,8 @@ gestion-notas/
 ├── routes/
 │   ├── auth.js                    # POST /api/login · POST /api/cambiar-password
 │   ├── dash.js                    # GET /dashboard/:id · GET /dashboard/curso/:cursoId
-│   ├── planilla.js                # GET · POST · PATCH · DELETE /planilla/...
-│   └── boletines.js               # GET /boletines/cursos · GET /boletines/generar/:cursoId
+│   ├── planilla.js                # GET · POST · PATCH · DELETE /planilla/... · GET /planilla/plantilla/:id · POST /planilla/importar/:id
+│   └── boletines.js               # GET /boletines/cursos · GET /boletines/generar/:cursoId · GET /boletines/excel/:cursoId
 │
 ├── public/
 │   ├── tokens.css                 # Sistema de diseño compartido (variables CSS)
@@ -186,6 +208,7 @@ gestion-notas/
 │   ├── cambiar.html               # Cambio de contraseña obligatorio
 │   └── api.js                     # apiFetch() + escHTML() compartidos
 │
+├──_fix_planilla_routes.js
 ├── .env                           # Variables de entorno — NO subir al repositorio
 ├── .gitignore
 ├── hash.js                        # Utilidad para generar hashes bcrypt
@@ -209,6 +232,8 @@ cd gestion-notas
 ```bash
 npm install
 ```
+
+> `exceljs` se instala junto con las demás dependencias. `SheetJS` (para importar Excel en el frontend) se carga desde CDN en `planilla.html` y no requiere instalación local.
 
 ### 3. Configurar variables de entorno
 
@@ -326,7 +351,8 @@ CREATE TABLE IF NOT EXISTS evaluaciones (
   tipo                 ENUM('Examen escrito','Oral','TP',
                             'Participacion +0.5','Participacion +1',
                             'Participacion -0.5',
-                            'Cierre Diciembre','Cierre Febrero') DEFAULT NULL,
+                            'Cierre Diciembre','Cierre Febrero',
+                            'Importado desde Excel') DEFAULT NULL,
   descripcion          VARCHAR(500) DEFAULT NULL,
   fecha                DATE         DEFAULT NULL,
   bimestre             INT          DEFAULT NULL,
@@ -336,6 +362,11 @@ CREATE TABLE IF NOT EXISTS evaluaciones (
   CONSTRAINT fk_ev_curso_materia FOREIGN KEY (curso_materia_id)     REFERENCES curso_materia(id) ON DELETE CASCADE  ON UPDATE CASCADE,
   CONSTRAINT fk_ev_origen        FOREIGN KEY (evaluacion_origen_id) REFERENCES evaluaciones(id)  ON DELETE CASCADE  ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- NOTA: Si ya tenés la BD creada sin 'Importado desde Excel' en el ENUM, ejecutar:
+-- ALTER TABLE evaluaciones MODIFY COLUMN tipo ENUM('Examen escrito','Oral','TP',
+--   'Participacion +0.5','Participacion +1','Participacion -0.5',
+--   'Cierre Diciembre','Cierre Febrero','Importado desde Excel') DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS notas (
   id            INT          AUTO_INCREMENT PRIMARY KEY,
@@ -584,8 +615,11 @@ pm2 stop gestion-notas           # detener el servidor
 | POST | `/planilla/evaluacion-global` | JWT | Carga global de evaluación para todo el curso |
 | PATCH | `/planilla/cierre-tema` | JWT | Nota de un tema en cierre de Diciembre o Febrero |
 | DELETE | `/planilla/evaluacion/:id` | JWT | Eliminar evaluación de un alumno |
+| GET | `/planilla/plantilla/:cmId` | JWT | Descarga la plantilla Excel de la materia con alumnos y notas actuales |
+| POST | `/planilla/importar/:cmId` | JWT | Importa notas desde Excel; crea alumnos nuevos si no existen |
 | GET | `/boletines/cursos` | JWT | Listado de cursos para generación de boletines |
-| GET | `/boletines/generar/:cursoId` | JWT | Genera ZIP de boletines PDF + envío de mails |
+| GET | `/boletines/generar/:cursoId` | JWT | Genera ZIP de boletines PDF + envío de mails opcional |
+| GET | `/boletines/excel/:cursoId` | JWT | Genera Excel con todas las materias del curso (solo descarga local) |
 
 ---
 
@@ -597,6 +631,46 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+```
+
+---
+
+## Migraciones de base de datos
+
+Si ya tenés la BD creada de una versión anterior del sistema, aplicá estas alteraciones en orden:
+
+```sql
+USE colegio;
+
+-- 1. Agregar emails a usuarios (si no existen)
+ALTER TABLE usuarios
+  ADD COLUMN IF NOT EXISTS email_usuario  VARCHAR(150) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS email_familiar VARCHAR(150) NOT NULL DEFAULT '';
+
+-- 2. Agregar rol secretario (si no existe en el ENUM)
+ALTER TABLE usuarios
+  MODIFY COLUMN rango ENUM('profesor','alumno','regente','preceptor','secretario') NOT NULL;
+
+-- 3. Actualizar ENUM de tipo en evaluaciones para incluir importaciones y cierres
+ALTER TABLE evaluaciones
+  MODIFY COLUMN tipo ENUM(
+    'Examen escrito','Oral','TP',
+    'Participacion +0.5','Participacion +1','Participacion -0.5',
+    'Cierre Diciembre','Cierre Febrero',
+    'Importado desde Excel'
+  ) DEFAULT NULL;
+
+-- 4. Corregir FK de evaluacion_origen_id (debe ser INT, no UNSIGNED)
+--    Solo si da error al crear la FK autorreferencial:
+ALTER TABLE evaluaciones
+  MODIFY COLUMN evaluacion_origen_id INT DEFAULT NULL;
+
+-- 5. Agregar FK con CASCADE en evaluacion_origen_id (si no existe)
+ALTER TABLE evaluaciones
+  ADD CONSTRAINT fk_ev_origen
+    FOREIGN KEY (evaluacion_origen_id)
+    REFERENCES evaluaciones(id)
+    ON DELETE CASCADE ON UPDATE CASCADE;
 ```
 
 ---
@@ -645,6 +719,8 @@ Una Raspberry Pi 4 (4 GB) o una PC de escritorio retirada de uso administrativo 
 | Hashing | bcrypt | Hash de contraseñas con salt 10 |
 | Rate limiting | express-rate-limit | Protección del endpoint de login |
 | Generación de PDF | pdfkit | Boletines oficiales en PDF |
+| Generación de Excel (backend) | exceljs | Planilla del secretario (por curso) y plantilla del profesor (por materia) con estilos, colores y formatos |
+| Lectura de Excel (frontend) | SheetJS / xlsx (CDN) | Parseo del Excel importado por el profesor, sin subir archivos al servidor |
 | Compresión | archiver (v7, API CommonJS) | Empaquetado de boletines en ZIP |
 | Envío de mail | nodemailer | Envío de boletines vía Gmail (App Password) |
 | Variables de entorno | dotenv | Configuración fuera del código fuente |
@@ -660,7 +736,7 @@ Una Raspberry Pi 4 (4 GB) o una PC de escritorio retirada de uso administrativo 
 | `regente01` | `1234` | Regente | Todas las materias de ambos cursos |
 | `profe1` | `1234` | Profesor | Las 6 materias que dicta |
 | `prece01` | `1234` | Preceptor | Todas las materias de 5°A y 4°A (solo lectura) |
-| `secretaria1` | `1234` | Secretario/a | Pantalla de generación de boletines |
+| `secretaria1` | `1234` | Secretario/a | Pantalla de generación de boletines PDF (ZIP + mail) y descarga de planilla Excel por curso |
 | `alumno1` | `1234` | Alumno | Sus notas en las 4 materias de 5°A |
 | `alumno2` | `1234` | Alumno | Sus notas en las 4 materias de 5°A |
 | `alumno3` | `1234` | Alumno | Sus notas en las 4 materias de 5°A |
