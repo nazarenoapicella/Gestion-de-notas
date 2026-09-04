@@ -214,3 +214,9 @@ async function descargarExcel() {
 // ─── Inicio ────────────────────────────────────────────────────────────────────
 
 cargarCursos();
+initAyuda({
+  porRol: {
+    secretario: "Elegí un curso y tocá 'Generar boletines' para descargar un PDF por cada alumno. Si dejás tildada la opción de mail, cada alumno y su familia lo reciben automáticamente por correo. El botón de Excel arma una planilla completa del curso para guardar en tu computadora — ese no se envía por mail.",
+    regente: "Desde acá generás los boletines oficiales de cualquier curso: en PDF (con envío por mail opcional) o en Excel para uso interno del colegio."
+  }
+});

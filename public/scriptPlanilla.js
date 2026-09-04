@@ -191,7 +191,10 @@ function estadoCierre2(evaluacionesAlumno) {
 function renderResumenBimestre(prom) {
   const esDesap = prom === "DESAPROBADO";
   const esVacio = prom === "-";
-  const clase   = esDesap ? "desaprobado" : (!esVacio ? "aprobado" : "");
+  const numVal  = parseFloat(prom);
+  // Desaprobado si es el string "DESAPROBADO" o si el número es < 6
+  const esMalo  = esDesap || (!esVacio && !isNaN(numVal) && numVal < 6);
+  const clase   = esMalo ? "desaprobado" : (!esVacio ? "aprobado" : "");
   return `
     <div class="bim-resumen">
       <div class="bim-resumen-label">Promedio bimestre</div>
@@ -315,7 +318,7 @@ async function cargar() {
   try {
     const res = await apiFetch(`/planilla/${cursoMateriaId}/${localStorage.getItem("id")}`);
     if (!res) return;
-    if (!res.ok) { alert("Error al cargar la planilla."); return; }
+    if (!res.ok) { mostrarMensaje("No pudimos cargar la planilla. Recargá la página e intentá de nuevo.", "error"); return; }
 
     const data = await res.json();
 
@@ -455,7 +458,7 @@ async function eliminarEvaluacion(evaluacionId, alumnoId) {
     cargar();
   } catch (err) {
     console.error("Error al eliminar evaluación:", err);
-    alert("Error de conexión al eliminar.");
+    mostrarMensaje("No nos pudimos conectar para eliminar la evaluación.", "error");
   }
 }
 
@@ -532,7 +535,7 @@ async function guardarGlobal() {
   const tipo        = document.getElementById("globalTipo").value;
   const bimestre    = document.getElementById("globalBimestre").value;
 
-  if (!descripcion) { alert("Completá la descripción."); return; }
+  if (!descripcion) { mostrarMensaje("Escribí de qué se trata la evaluación (por ejemplo: 'Examen unidad 3') antes de guardar.", "error"); return; }
 
   const esAcumulativo    = document.getElementById("globalEsAcumulativo").checked;
   let evaluacionOrigenId = null;
@@ -541,7 +544,7 @@ async function guardarGlobal() {
     const sel = document.getElementById("globalEvaluacionOrigen");
     evaluacionOrigenId = sel ? parseInt(sel.value, 10) : null;
     if (!evaluacionOrigenId || isNaN(evaluacionOrigenId)) {
-      alert("Seleccioná la evaluación de origen."); return;
+      mostrarMensaje("Elegí a qué evaluación anterior corresponde esta recuperación.", "error"); return;
     }
   }
 
@@ -551,7 +554,7 @@ async function guardarGlobal() {
     if (notaInput.value === "") continue;
     let valor = Number(notaInput.value);
     if (esParticipacion(tipo)) {
-      if (valor !== 0 && valor !== 1) { alert("En valoración solo se permite 0 o 1."); return; }
+      if (valor !== 0 && valor !== 1) { mostrarMensaje("Para participación solo se puede cargar 0 (no sumó) o 1 (sí sumó).", "error"); return; }
       if (valor === 0) continue;
       if      (tipo.includes("+1"))   valor =  1;
       else if (tipo.includes("+0.5")) valor =  0.5;
@@ -560,7 +563,7 @@ async function guardarGlobal() {
     notas.push({ alumnoId: alumno.id, nota: valor });
   }
 
-  if (notas.length === 0) { alert("Debes cargar al menos una nota."); return; }
+  if (notas.length === 0) { mostrarMensaje("Cargá la nota de al menos un alumno antes de guardar.", "error"); return; }
 
   try {
     const res = await apiFetch("/planilla/evaluacion-global", {
@@ -568,12 +571,12 @@ async function guardarGlobal() {
       body: JSON.stringify({ cursoMateriaId, descripcion, tipo, bimestre, notas, esAcumulativo, evaluacionOrigenId })
     });
     if (!res) return;
-    if (!res.ok) { const err = await res.json(); alert(err.error || "Error al guardar."); return; }
+    if (!res.ok) { const err = await res.json(); mostrarMensaje(err.error || "No se pudo eliminar esa evaluación. Probá de nuevo.", "error"); return; }
     document.getElementById("globalDescripcion").value = "";
     cargar();
   } catch (err) {
     console.error("Error al guardar evaluación global:", err);
-    alert("Error de conexión al guardar.");
+    mostrarMensaje("No nos pudimos conectar con el servidor. Revisá tu conexión e intentá de nuevo.", "error");
   }
 }
 
@@ -594,7 +597,7 @@ function actualizarSelectOrigen() {
   if (evalsPrevias.length === 0) {
     contenedor.style.display = "none";
     checkbox.checked = false;
-    alert("No hay evaluaciones previas en este curso para usar como origen.");
+    mostrarMensaje("Todavía no cargaste ninguna evaluación anterior en esta materia, así que no hay ninguna para marcar como recuperada.", "info");
     return;
   }
 
@@ -728,9 +731,9 @@ async function guardarCierreDic() {
   const evaluacionId = Number(document.getElementById("dicSelTema").value);
   const nota         = Number(document.getElementById("dicNota").value);
 
-  if (!alumnoId)     { alert("Seleccioná un alumno."); return; }
-  if (!evaluacionId) { alert("Seleccioná un tema."); return; }
-  if (isNaN(nota) || nota < 1 || nota > 10) { alert("Nota inválida (1 a 10)."); return; }
+  if (!alumnoId)     { mostrarMensaje("Elegí primero el alumno.", "error"); return; }
+  if (!evaluacionId) { mostrarMensaje("Elegí qué tema rindió el alumno.", "error"); return; }
+  if (isNaN(nota) || nota < 1 || nota > 10) { mostrarMensaje("La nota tiene que ser un número entre 1 y 10.", "error"); return; }
 
   try {
     const res = await apiFetch("/planilla/cierre-tema", {
@@ -738,11 +741,11 @@ async function guardarCierreDic() {
       body: JSON.stringify({ evaluacionId, alumnoId, cursoMateriaId, nota, numeroCierre: 1 })
     });
     if (!res) return;
-    if (!res.ok) { const err = await res.json(); alert(err.error || "Error al guardar."); return; }
+    if (!res.ok) { const err = await res.json(); mostrarMensaje(err.error || "No se pudo eliminar esa evaluación. Probá de nuevo.", "error"); return; }
     cargar();
   } catch (err) {
     console.error("Error al guardar cierre diciembre:", err);
-    alert("Error de conexión al guardar.");
+    mostrarMensaje("No nos pudimos conectar con el servidor. Revisá tu conexión e intentá de nuevo.", "error");
   }
 }
 
@@ -797,9 +800,9 @@ async function guardarCierreFeb() {
   const evaluacionId = Number(document.getElementById("febSelTema").value);
   const nota         = Number(document.getElementById("febNota").value);
 
-  if (!alumnoId)     { alert("Seleccioná un alumno."); return; }
-  if (!evaluacionId) { alert("Seleccioná un tema."); return; }
-  if (isNaN(nota) || nota < 1 || nota > 10) { alert("Nota inválida (1 a 10)."); return; }
+  if (!alumnoId)     { mostrarMensaje("Elegí primero el alumno.", "error"); return; }
+  if (!evaluacionId) { mostrarMensaje("Elegí qué tema rindió el alumno.", "error"); return; }
+  if (isNaN(nota) || nota < 1 || nota > 10) { mostrarMensaje("La nota tiene que ser un número entre 1 y 10.", "error"); return; }
 
   try {
     const res = await apiFetch("/planilla/cierre-tema", {
@@ -807,11 +810,11 @@ async function guardarCierreFeb() {
       body: JSON.stringify({ evaluacionId, alumnoId, cursoMateriaId, nota, numeroCierre: 2 })
     });
     if (!res) return;
-    if (!res.ok) { const err = await res.json(); alert(err.error || "Error al guardar."); return; }
+    if (!res.ok) { const err = await res.json(); mostrarMensaje(err.error || "No se pudo eliminar esa evaluación. Probá de nuevo.", "error"); return; }
     cargar();
   } catch (err) {
     console.error("Error al guardar cierre febrero:", err);
-    alert("Error de conexión al guardar.");
+    mostrarMensaje("No nos pudimos conectar con el servidor. Revisá tu conexión e intentá de nuevo.", "error");
   }
 }
 
@@ -1036,9 +1039,11 @@ function parsearFilasExcel(rows) {
 
   for (const row of rows) {
     const { apellido, nombre } = parsearNombre(row);
-    if (!apellido && !nombre) continue;
+if (!apellido && !nombre) continue;
 
-    const fila = { apellido, nombre };
+const dni = String(obtenerVal(row, "dni") || "").trim();
+
+const fila = { apellido, nombre, dni };
 
     for (const [colOrig, key] of Object.entries(mapaColumnasFila)) {
       const v = row[colOrig];
@@ -1240,3 +1245,11 @@ function mostrarResultadoImportacion(resultado, advertencia = "") {
 document.getElementById("globalTipo").addEventListener("change", actualizarInputsNota);
 
 cargar();
+initAyuda({
+  porRol: {
+    profesor: "Cargá notas con 'Carga global de notas' para todo el curso de una vez. Si un alumno desaprobó un tema y después lo recuperó, tildá 'evaluación acumulativa' y elegí la nota vieja: el sistema la reemplaza sin borrar el historial. Los 'Cierres administrativos' aparecen solos cuando un alumno necesita rendir en diciembre o febrero.",
+    alumno: "Cada columna es un período del año. 'DESAPROBADO' significa que ese período no se aprobó. 'PREVIA' quiere decir que hay que rendir la materia fuera de las fechas normales.",
+    regente: "Podés cargar o solo mirar notas según tu permiso. Las columnas de 'Cierre' se completan solas cuando un alumno necesita una instancia de recuperación en diciembre o febrero.",
+    preceptor: "Esta es la planilla completa de la materia, solo para consultar. No podés cargar ni cambiar ninguna nota desde acá."
+  }
+});

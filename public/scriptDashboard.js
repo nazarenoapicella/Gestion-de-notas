@@ -37,7 +37,7 @@ async function cargarCursos() {
     if (!res) return;
 
     if (!res.ok) {
-      alert("Error al cargar el dashboard.");
+      mostrarMensaje("No pudimos cargar tus materias. Recargá la página.", "error");
       return;
     }
 
@@ -78,7 +78,7 @@ async function cargarCursos() {
 
   } catch (err) {
     console.error("Error al cargar cursos:", err);
-    alert("Error de conexión al cargar el dashboard.");
+    mostrarMensaje("No nos pudimos conectar con el servidor.", "error");
   }
 }
 
@@ -89,7 +89,7 @@ async function cargarMateriasDeCurso(cursoId, etiquetaCurso) {
 
     if (!res.ok) {
       const err = await res.json();
-      alert(err.error || "Error al cargar las materias del curso.");
+      mostrarMensaje(err.error || "No pudimos cargar las materias de este curso.", "error");
       return;
     }
 
@@ -161,7 +161,7 @@ async function cargarMateriasDeCurso(cursoId, etiquetaCurso) {
 
   } catch (err) {
     console.error("Error al cargar materias del curso:", err);
-    alert("Error de conexión al cargar las materias.");
+    mostrarMensaje("No nos pudimos conectar con el servidor.", "error");
   }
 }
 
@@ -174,7 +174,7 @@ async function cargarMateriasAlumno() {
     if (!res) return;
 
     if (!res.ok) {
-      alert("Error al cargar el dashboard.");
+      mostrarMensaje("No pudimos cargar tus materias. Recargá la página.", "error");
       return;
     }
 
@@ -220,7 +220,7 @@ async function cargarMateriasAlumno() {
 
   } catch (err) {
     console.error("Error al cargar materias del alumno:", err);
-    alert("Error de conexión al cargar el dashboard.");
+    mostrarMensaje("No nos pudimos conectar con el servidor.", "error");
   }
 }
 
@@ -237,3 +237,12 @@ if (rango === "secretario") {
 } else {
   document.getElementById("grid").innerHTML = "<p class='vacio-msg'>Rol no reconocido.</p>";
 }
+
+initAyuda({
+  porRol: {
+    profesor: "Tocá un curso para ver sus materias. 'Administrar notas' te deja cargar y editar; si no ves ese botón en una materia, es porque ahí solo podés mirar.",
+    alumno: "Acá ves tus materias. Tocá una para ver tus notas de bimestres, cuatrimestres y el resultado final.",
+    regente: "Podés ver todos los cursos del colegio. Arriba a la derecha tenés el botón 'Boletines' para generar las libretas de un curso completo.",
+    preceptor: "Ves todas las materias de los cursos que tenés asignados, pero no podés cargar ni cambiar notas — solo consultarlas."
+  }
+});

@@ -60,7 +60,7 @@
   const errorMsg   = document.getElementById("errorMsg");
 
   if (!token || !storedUser || storedUser !== userParam) {
-    alert("Acción no autorizada.");
+    mostrarMensaje("No podés acceder a esta página directamente. Iniciá sesión primero.", "error");
     location.href = "index.html";
   }
 

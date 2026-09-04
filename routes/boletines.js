@@ -541,11 +541,11 @@ router.get("/excel/:cursoId", authMiddleware, async (req, res) => {
         const valores = [
           alumno.apellido,
           alumno.nombre,
-          valorNumerico(r.bimestre1),
-          valorNumerico(r.bimestre2),
+          valorNumerico(r.bimestre1Num),   // numérico siempre, nunca "DESAPROBADO"
+          valorNumerico(r.bimestre2Num),
           valorNumerico(r.cuatrimestre1),
-          valorNumerico(r.bimestre3),
-          valorNumerico(r.bimestre4),
+          valorNumerico(r.bimestre3Num),
+          valorNumerico(r.bimestre4Num),
           valorNumerico(r.cuatrimestre2),
           valorNumerico(r.cierre1),
           valorNumerico(r.cierre2),
@@ -554,9 +554,9 @@ router.get("/excel/:cursoId", authMiddleware, async (req, res) => {
 
         const rawVals = [
           null, null,
-          r.bimestre1, r.bimestre2, r.cuatrimestre1,
-          r.bimestre3, r.bimestre4, r.cuatrimestre2,
-          r.cierre1,   r.cierre2,   r.notaFinal
+          r.bimestre1Num, r.bimestre2Num, r.cuatrimestre1,
+          r.bimestre3Num, r.bimestre4Num, r.cuatrimestre2,
+          r.cierre1,      r.cierre2,      r.notaFinal
         ];
 
         valores.forEach((val, colIdx) => {

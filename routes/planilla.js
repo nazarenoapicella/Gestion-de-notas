@@ -125,59 +125,42 @@ async function validarEvaluacionOrigen(conn, evaluacionOrigenId, cursoMateriaId)
 
 // ─── Helpers de importación ────────────────────────────────────────────────────
 
-async function buscarAlumnoPorNombre(conn, apellido, nombre) {
+async function buscarAlumnoPorDniONombre(conn, dni, apellido, nombre) {
+  if (dni) {
+    const porDni = await conn.query(
+      "SELECT id FROM usuarios WHERE rango = 'alumno' AND dni = ? LIMIT 1",
+      [String(dni).trim()]
+    );
+    if (porDni && porDni.length > 0) return Number(porDni[0].id);
+  }
   const rows = await conn.query(
     `SELECT id FROM usuarios
-     WHERE rango = 'alumno'
-       AND TRIM(apellido) = TRIM(?)
-       AND TRIM(nombre)   = TRIM(?)
+     WHERE rango = 'alumno' AND TRIM(apellido) = TRIM(?) AND TRIM(nombre) = TRIM(?)
      LIMIT 1`,
     [apellido.trim(), nombre.trim()]
   );
   return rows && rows.length > 0 ? Number(rows[0].id) : null;
 }
 
-async function generarUsuarioUnico(conn, apellido, nombre) {
-  const norm = str =>
-    str.toLowerCase()
-       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-       .replace(/[^a-z0-9]/g, "");
-
-  const base = `${norm(apellido)}.${norm(nombre)}`;
-  let usuario = base;
-  let sufijo  = 1;
-
-  while (true) {
-    const existe = await conn.query(
-      "SELECT id FROM usuarios WHERE usuario = ? LIMIT 1", [usuario]
-    );
-    if (!existe || existe.length === 0) break;
-    sufijo++;
-    usuario = `${base}${sufijo}`;
-  }
-  return usuario;
-}
-
-async function crearAlumnoNuevo(conn, apellido, nombre, cursoId) {
-  const usuario      = await generarUsuarioUnico(conn, apellido, nombre);
-  const passwordHash = await bcrypt.hash("ET35", 10);
+async function crearAlumnoNuevo(conn, dni, apellido, nombre, cursoId) {
+  const dniLimpio     = String(dni || "").trim();
+  const passwordHash  = await bcrypt.hash("ET35", 10);
 
   const result = await conn.query(
     `INSERT INTO usuarios
-       (usuario, password, nombre, apellido, rango, permiso,
+       (usuario, password, nombre, apellido, dni, rango, permiso,
         debe_cambiar_password, email_usuario, email_familiar)
-     VALUES (?, ?, ?, ?, 'alumno', 'lectura', 1, '', '')`,
-    [usuario, passwordHash, nombre.trim(), apellido.trim()]
+     VALUES (?, ?, ?, ?, ?, 'alumno', 'lectura', 1, '', '')`,
+    [dniLimpio, passwordHash, nombre.trim(), apellido.trim(), dniLimpio]
   );
 
   const nuevoId = Number(result.insertId);
-
   await conn.query(
     "INSERT IGNORE INTO alumno_curso (alumno_id, curso_id) VALUES (?, ?)",
     [nuevoId, cursoId]
   );
 
-  return { id: nuevoId, usuario };
+  return { id: nuevoId, usuario: dniLimpio };
 }
 
 async function asegurarInscripcion(conn, alumnoId, cursoId) {
@@ -326,13 +309,13 @@ router.get("/plantilla/:cursoMateriaId", authMiddleware, async (req, res) => {
 
     // Alumnos del curso
     const alumnos = await conn.query(`
-      SELECT u.id, u.nombre, u.apellido
-      FROM alumno_curso ac
-      JOIN usuarios u ON ac.alumno_id = u.id
-      WHERE ac.curso_id = (SELECT curso_id FROM curso_materia WHERE id = ?)
-        AND u.rango = 'alumno'
-      ORDER BY u.apellido, u.nombre
-    `, [cursoMateriaId]);
+  SELECT u.id, u.nombre, u.apellido, u.dni
+  FROM alumno_curso ac
+  JOIN usuarios u ON ac.alumno_id = u.id
+  WHERE ac.curso_id = (SELECT curso_id FROM curso_materia WHERE id = ?)
+    AND u.rango = 'alumno'
+  ORDER BY u.apellido, u.nombre
+`, [cursoMateriaId]);
 
     // Evaluaciones + notas de todos los alumnos
     const evaluaciones = await conn.query(`
@@ -378,19 +361,20 @@ router.get("/plantilla/:cursoMateriaId", authMiddleware, async (req, res) => {
     ws.getRow(3).height = 8;
 
     // ── Fila 4: Cabeceras de columna ──
-    const COLS = [
-      { key: "apellido", header: "Apellido",              width: 24, type: "id",   fill: "FF1A1A1A" },
-      { key: "nombre",   header: "Nombre",                width: 20, type: "id",   fill: "FF1A1A1A" },
-      { key: "b1",       header: "1er Bimestre",          width: 16, type: "note", fill: "FF1E3A5F" },
-      { key: "b2",       header: "2do Bimestre",          width: 16, type: "note", fill: "FF1E3A5F" },
-      { key: "cq1",      header: "1er Cuatrimestre ★",   width: 20, type: "calc", fill: "FF3D3D3D" },
-      { key: "b3",       header: "3er Bimestre",          width: 16, type: "note", fill: "FF1A4731" },
-      { key: "b4",       header: "4to Bimestre",          width: 16, type: "note", fill: "FF1A4731" },
-      { key: "cq2",      header: "2do Cuatrimestre ★",   width: 20, type: "calc", fill: "FF3D3D3D" },
-      { key: "c1",       header: "1er Cierre (Dic.) ",    width: 18, type: "note", fill: "FF5B21B6" },
-      { key: "c2",       header: "2do Cierre (Feb.)",     width: 18, type: "note", fill: "FF9A3412" },
-      { key: "nf",       header: "Nota Final ★",         width: 16, type: "calc", fill: "FF3D3D3D" },
-    ];
+   const COLS = [
+  { key: "apellido", header: "Apellido",              width: 24, type: "id",   fill: "FF1A1A1A" },
+  { key: "nombre",   header: "Nombre",                width: 20, type: "id",   fill: "FF1A1A1A" },
+  { key: "dni",      header: "DNI",                   width: 15, type: "id",   fill: "FF1A1A1A" },
+  { key: "b1",       header: "1er Bimestre",          width: 16, type: "note", fill: "FF1E3A5F" },
+  { key: "b2",       header: "2do Bimestre",          width: 16, type: "note", fill: "FF1E3A5F" },
+  { key: "cq1",      header: "1er Cuatrimestre ★",   width: 20, type: "calc", fill: "FF3D3D3D" },
+  { key: "b3",       header: "3er Bimestre",          width: 16, type: "note", fill: "FF1A4731" },
+  { key: "b4",       header: "4to Bimestre",          width: 16, type: "note", fill: "FF1A4731" },
+  { key: "cq2",      header: "2do Cuatrimestre ★",   width: 20, type: "calc", fill: "FF3D3D3D" },
+  { key: "c1",       header: "1er Cierre (Dic.) ",    width: 18, type: "note", fill: "FF5B21B6" },
+  { key: "c2",       header: "2do Cierre (Feb.)",     width: 18, type: "note", fill: "FF9A3412" },
+  { key: "nf",       header: "Nota Final ★",         width: 16, type: "calc", fill: "FF3D3D3D" },
+];
 
     const hRow = ws.getRow(4);
     hRow.height = 38;
@@ -426,18 +410,19 @@ router.get("/plantilla/:cursoMateriaId", authMiddleware, async (req, res) => {
       const r = calcularResumenMateria(evAlumno);
 
       const valoresCeldas = [
-        alumno.apellido,
-        alumno.nombre,
-        valorCeldaNota(r.bimestre1),
-        valorCeldaNota(r.bimestre2),
-        valorCeldaNota(r.cuatrimestre1),
-        valorCeldaNota(r.bimestre3),
-        valorCeldaNota(r.bimestre4),
-        valorCeldaNota(r.cuatrimestre2),
-        valorCeldaNota(r.cierre1),
-        valorCeldaNota(r.cierre2),
-        valorCeldaNota(r.notaFinal),
-      ];
+  alumno.apellido,
+  alumno.nombre,
+  alumno.dni || "",
+  valorCeldaNota(r.bimestre1),
+  valorCeldaNota(r.bimestre2),
+  valorCeldaNota(r.cuatrimestre1),
+  valorCeldaNota(r.bimestre3),
+  valorCeldaNota(r.bimestre4),
+  valorCeldaNota(r.cuatrimestre2),
+  valorCeldaNota(r.cierre1),
+  valorCeldaNota(r.cierre2),
+  valorCeldaNota(r.notaFinal),
+];
 
       valoresCeldas.forEach((val, colIdx) => {
         const cell   = dataRow.getCell(colIdx + 1);
@@ -474,7 +459,7 @@ router.get("/plantilla/:cursoMateriaId", authMiddleware, async (req, res) => {
 
     // ── Fila de leyenda al pie ──
     const legendRow = alumnos.length + 5 + 1;
-    ws.mergeCells(`A${legendRow}:K${legendRow}`);
+    ws.mergeCells(`A${legendRow}:L${legendRow}`); // era K
     ws.getRow(legendRow).height = 32;
     const cLegend = ws.getCell(`A${legendRow}`);
     cLegend.value = "★ Cuatrimestres y Nota Final: se calculan automáticamente. " +
@@ -564,25 +549,39 @@ router.post("/importar/:cursoMateriaId", authMiddleware, async (req, res) => {
     let estudiantesNuevos   = 0;
 
     for (const fila of filas) {
+      // --- BLOQUE REEMPLAZADO ---
       const apellido = String(fila.apellido || "").trim();
       const nombre   = String(fila.nombre   || "").trim();
+      const dni      = String(fila.dni      || "").trim();
 
       if (!apellido || !nombre) {
-        detalle.push({ alumno: `${apellido} ${nombre}`.trim() || "(sin nombre)", estado: "error", error: "Apellido o nombre vacío", notasImportadas: [], notasOmitidas: [] });
+        detalle.push({
+          alumno: `${apellido} ${nombre}`.trim() || "(sin nombre)",
+          estado: "error",
+          error: "Falta el apellido o el nombre en esa fila.",
+          notasImportadas: [], notasOmitidas: []
+        });
         continue;
       }
 
       const filaRes = { alumno: `${apellido}, ${nombre}`, estado: "", notasImportadas: [], notasOmitidas: [], usuarioCreado: null, passwordTemporal: null, error: null };
 
-      let alumnoId = await buscarAlumnoPorNombre(conn, apellido, nombre);
+      let alumnoId = await buscarAlumnoPorDniONombre(conn, dni, apellido, nombre);
 
       if (!alumnoId) {
+        if (!dni) {
+          filaRes.estado = "error";
+          filaRes.error  = "Este alumno no está en el sistema y no completaste su DNI, así que no lo pudimos dar de alta. Agregá el DNI en la columna correspondiente y volvé a importar el archivo.";
+          detalle.push(filaRes);
+          continue;
+        }
         try {
-          const nuevo = await crearAlumnoNuevo(conn, apellido, nombre, cursoId);
-          alumnoId                    = nuevo.id;
-          filaRes.estado              = "creado";
-          filaRes.usuarioCreado       = nuevo.usuario;
-          filaRes.passwordTemporal    = "ET35";
+          // Asegurate de que crearAlumnoNuevo en tu otro archivo soporte recibir "dni" como parámetro
+          const nuevo = await crearAlumnoNuevo(conn, dni, apellido, nombre, cursoId);
+          alumnoId                  = nuevo.id;
+          filaRes.estado            = "creado";
+          filaRes.usuarioCreado     = nuevo.usuario;
+          filaRes.passwordTemporal  = "ET35";
           estudiantesNuevos++;
         } catch (err) {
           filaRes.estado = "error";
@@ -594,6 +593,7 @@ router.post("/importar/:cursoMateriaId", authMiddleware, async (req, res) => {
         filaRes.estado = "encontrado";
         await asegurarInscripcion(conn, alumnoId, cursoId);
       }
+      // --- FIN BLOQUE REEMPLAZADO ---
 
       for (const periodo of PERIODOS) {
         const valorRaw = fila[periodo.key];
